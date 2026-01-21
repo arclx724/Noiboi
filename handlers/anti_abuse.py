@@ -105,29 +105,66 @@ def register_abuse_handlers(app: Client):
 
     # ================= ABUSE WATCHER =================
 
-    @app.on_message(filters.text & filters.group & ~filters.bot, group=10)
-    async def abuse_watcher(_, message):
+@app.on_message(filters.text & filters.group & ~filters.bot, group=10)
+async def abuse_watcher(client, message):
 
-        # Check enabled
-        if not await db.is_abuse_enabled(message.chat.id):
-            return
+    # ---------- SAFETY ----------
+    if not message.from_user:
+        return
 
-        # Admin immune
-        if await is_admin(message.chat.id, message.from_user.id):
-            return
+    # ---------- CHECKS ----------
+    if not await db.is_abuse_enabled(message.chat.id):
+        return
 
-        # Whitelist
-        if await db.is_user_whitelisted(message.chat.id, message.from_user.id):
-            return
+    if await is_admin(message.chat.id, message.from_user.id):
+        return
 
-        text = message.text
-        detected = False
+    if await db.is_user_whitelisted(message.chat.id, message.from_user.id):
+        return
 
-        # -------- LOCAL CHECK --------
-        for word in ABUSIVE_WORDS:
-            if re.search(rf"\b{re.escape(word)}\b", text, re.IGNORECASE):
-                detected = True
-                break
+    text = message.text
+    detected = False
+
+    # ---------- LOCAL WORD CHECK ----------
+    for word in ABUSIVE_WORDS:
+        if re.search(rf"\b{re.escape(word)}\b", text, re.IGNORECASE):
+            detected = True
+            break
+
+    # ---------- AI CHECK ----------
+    if not detected and OPENROUTER_API_KEY:
+        detected = await check_toxicity_ai(text)
+
+    if not detected:
+        return
+
+    try:
+        # delete abusive msg
+        await message.delete()
+
+        user = message.from_user
+        name = user.first_name or "User"
+
+        # ❗ NO HTML, NO ENTITIES, NO MENTION
+        warn_text = (
+            f"🚫 Hey {name}, your message was removed.\n\n"
+            f"🔍 Censored:\n██████\n\n"
+            f"⚠️ Please keep the chat respectful."
+        )
+
+        # ❗ IMPORTANT FIX — send_message + parse_mode=None
+        sent = await client.send_message(
+            chat_id=message.chat.id,
+            text=warn_text,
+            parse_mode=None,
+            disable_web_page_preview=True
+        )
+
+        await asyncio.sleep(60)
+        await sent.delete()
+
+    except Exception as e:
+        print("Abuse filter error:", e)
 
         # -------- AI CHECK --------
         if not detected and OPENROUTER_API_KEY:
