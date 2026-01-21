@@ -153,11 +153,10 @@ def register_abuse_handlers(app: Client):
                 f"⚠️ Please be respectful."
             )
 
-            sent = await message.reply_text(
-                warning_text,
-                reply_markup=buttons,
-                parse_mode=ParseMode.HTML,
-                disable_web_page_preview=True
+            sent = await message.reply_html(
+    warning_text,
+    reply_markup=buttons,
+    disable_web_page_preview=True
             )
 
             await asyncio.sleep(60)
