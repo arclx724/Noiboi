@@ -1,11 +1,14 @@
 import re
 import aiohttp
 import asyncio
-from html import escape
 
 from pyrogram import Client, filters
-from pyrogram.enums import ChatMemberStatus, ParseMode
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.enums import ChatMemberStatus
+from pyrogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    MessageEntity
+)
 
 from config import OPENROUTER_API_KEY, BOT_USERNAME
 import db
@@ -20,7 +23,6 @@ ABUSIVE_WORDS = [
     "saala", "saali", "randi", "fuck", "bitch", "asshole",
     "motherfucker", "dick", "tmkc", "mkc"
 ]
-
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -40,7 +42,7 @@ def register_abuse_handlers(app: Client):
             return False
 
 
-    # ================= AI TOXICITY CHECK =================
+    # ================= AI CHECK =================
 
     async def check_toxicity_ai(text: str) -> bool:
         if not text or not OPENROUTER_API_KEY:
@@ -87,7 +89,7 @@ def register_abuse_handlers(app: Client):
     @app.on_message(filters.command("abuse") & filters.group)
     async def toggle_abuse(_, message):
         if not await is_admin(message.chat.id, message.from_user.id):
-            return await message.reply_text("❌ Only admins can use this.")
+            return await message.reply("❌ Only admins can use this.")
 
         if len(message.command) > 1:
             arg = message.command[1].lower()
@@ -98,7 +100,7 @@ def register_abuse_handlers(app: Client):
 
         await db.set_abuse_status(message.chat.id, new_status)
         state = "Enabled ✅" if new_status else "Disabled ❌"
-        await message.reply_text(f"🛡 Abuse protection is now {state}")
+        await message.reply(f"🛡 Abuse protection is now {state}")
 
 
     # ================= ABUSE WATCHER =================
@@ -123,8 +125,7 @@ def register_abuse_handlers(app: Client):
 
         # -------- LOCAL CHECK --------
         for word in ABUSIVE_WORDS:
-            pattern = re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
-            if pattern.search(text):
+            if re.search(rf"\b{re.escape(word)}\b", text, re.IGNORECASE):
                 detected = True
                 break
 
@@ -132,31 +133,41 @@ def register_abuse_handlers(app: Client):
         if not detected and OPENROUTER_API_KEY:
             detected = await check_toxicity_ai(text)
 
-        # -------- ACTION --------
         if not detected:
             return
 
         try:
             await message.delete()
 
-            mention = message.from_user.mention_html()
-            safe_text = escape(text)
+            user = message.from_user
+            name = user.first_name or "User"
+
+            base_text = (
+                "🚫 Hey " + name + ", your message was removed.\n\n"
+                "🔍 Censored:\n"
+                "████████\n\n"
+                "⚠️ Please be respectful."
+            )
+
+            # Mention entity (NO HTML / NO MARKDOWN)
+            entities = [
+                MessageEntity(
+                    type="text_mention",
+                    offset=5,              # "🚫 Hey " = 5 chars
+                    length=len(name),
+                    user=user
+                )
+            ]
 
             buttons = InlineKeyboardMarkup(
                 [[InlineKeyboardButton("📢 Updates", url=f"https://t.me/{BOT_USERNAME}")]]
             )
 
-            warning_text = (
-                f"🚫 Hey {mention}, your message was removed.\n\n"
-                f"🔍 <b>Censored:</b>\n"
-                f"<spoiler>{safe_text}</spoiler>\n\n"
-                f"⚠️ Please be respectful."
-            )
-
-            sent = await message.reply_html(
-    warning_text,
-    reply_markup=buttons,
-    disable_web_page_preview=True
+            sent = await message.reply(
+                base_text,
+                entities=entities,
+                reply_markup=buttons,
+                disable_web_page_preview=True
             )
 
             await asyncio.sleep(60)
