@@ -7,7 +7,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from config import OPENROUTER_API_KEY, BOT_USERNAME
 import db
 
-# Abusive Words List (Aapki list same rakhi hai)
+# Abusive Words List
 ABUSIVE_WORDS = [
     "madarchod", "Madharchod", "Madharchood", "behenchod", "madherchood", "madherchod", "bhenchod", "maderchod", "mc", "bc", "bsdk", 
     "bhosdike", "bhosdiwala", "chutiya", "chutiyapa", "gandu", "gand", 
@@ -182,4 +182,4 @@ def register_abuse_handlers(app: Client):
                 await sent.delete()
             except Exception as e:
                 print(f"Error deleting abuse: {e}")
-              
+                
