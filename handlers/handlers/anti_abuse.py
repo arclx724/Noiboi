@@ -162,7 +162,7 @@ def register_abuse_handlers(app: Client):
             try:
                 await message.delete()
                 
-                # BUTTONS FIX
+                # BUTTONS FIX (Sahi Icon aur Link ke saath)
                 buttons = InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("➕ Add Me", url=f"https://t.me/{BOT_USERNAME}?startgroup=true"),
@@ -170,11 +170,13 @@ def register_abuse_handlers(app: Client):
                     ]
                 ])
 
-                # MENTION FIX (Clean Markdown)
-                # Name mein se brackets hata dete hain taaki markdown na fate
+                # MENTION FIX (Markdown Style: [Name](Link))
+                # Ye style kabhi fail nahi hota, Security Bot yahi use karta hai.
+                # Hum name se special characters hata rahe hain taaki link na toote.
                 clean_name = message.from_user.first_name.replace("[", "").replace("]", "")
                 user_link = f"[{clean_name}](tg://user?id={message.from_user.id})"
 
+                # TEXT FORMATTING (Exact Match)
                 warning_text = (
                     f"🚫 Hey {user_link}, your message was removed.\n\n"
                     f"🔍 **Censored:**\n{censored_text}\n\n"
@@ -184,7 +186,8 @@ def register_abuse_handlers(app: Client):
                 sent = await message.reply_text(
                     warning_text,
                     reply_markup=buttons,
-                    parse_mode=ParseMode.MARKDOWN # MARKDOWN MODE
+                    disable_web_page_preview=True
+                    # ParseMode Default (Markdown) hi rahega jo Pyrogram ka standard hai
                 )
                 await asyncio.sleep(60)
                 await sent.delete()
