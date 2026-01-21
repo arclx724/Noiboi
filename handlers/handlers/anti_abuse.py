@@ -185,11 +185,24 @@ def register_abuse_handlers(app: Client):
                     f"Please keep the chat respectful."
                 )
 
-                sent = await message.reply_text(
-                    warning_text,
-                    reply_markup=buttons,
-                    parse_mode=ParseMode.MARKDOWN  # STRICT MARKDOWN
-                )
+                user_name = message.from_user.first_name or "User"
+user_id = message.from_user.id
+
+mention_html = f'<a href="tg://user?id={user_id}">{user_name}</a>'
+
+warning_text = (
+    f"🚫 Hey {mention_html}, your message was removed.\n\n"
+    f"🔍 <b>Censored:</b>\n"
+    f"<spoiler>{text}</spoiler>\n\n"
+    f"⚠️ Please be respectful."
+)
+
+sent = await message.reply_text(
+    warning_text,
+    reply_markup=buttons,
+    parse_mode=ParseMode.HTML,
+    disable_web_page_preview=True
+)
                 await asyncio.sleep(60)
                 await sent.delete()
             except Exception as e:
