@@ -1,10 +1,9 @@
 import re
 import aiohttp
 import asyncio
-from html import escape # HTML escape zaroori hai taaki naam mein agar < > ho to code na fate
 from pyrogram import Client, filters
 from pyrogram.enums import ChatMemberStatus, ParseMode
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from config import OPENROUTER_API_KEY, BOT_USERNAME
 import db
 
@@ -65,8 +64,8 @@ def register_abuse_handlers(app: Client):
                         data = await resp.json()
                         answer = data['choices'][0]['message']['content'].strip().upper()
                         return "YES" in answer
-        except Exception as e:
-            print(f"AI Check Error: {e}")
+        except Exception:
+            return False
         return False
 
     # ================= COMMANDS =================
@@ -142,29 +141,28 @@ def register_abuse_handlers(app: Client):
             return
 
         text = message.text
-        censored_text = escape(text) # Escape Text for HTML
+        censored_text = text
         detected = False
 
-        # 1. Local Check
+        # 1. Local Check (Using Markdown Spoilers ||word||)
         for word in ABUSIVE_WORDS:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
-            if pattern.search(text):
+            if pattern.search(censored_text):
                 detected = True
-                # Replace with HTML Spoiler tag
-                censored_text = pattern.sub(lambda match: f"<tg-spoiler>{match.group(0)}</tg-spoiler>", censored_text)
+                censored_text = pattern.sub(lambda match: f"||{match.group(0)}||", censored_text)
 
         # 2. AI Check (Fallback)
         if not detected and OPENROUTER_API_KEY:
             if await check_toxicity_ai(text):
                 detected = True
-                censored_text = f"<tg-spoiler>{escape(text)}</tg-spoiler>"
+                censored_text = f"||{text}||"
 
         # 3. Action
         if detected:
             try:
                 await message.delete()
                 
-                # --- FINAL BUTTON FIX ---
+                # BUTTONS FIX
                 buttons = InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("➕ Add Me", url=f"https://t.me/{BOT_USERNAME}?startgroup=true"),
@@ -172,22 +170,21 @@ def register_abuse_handlers(app: Client):
                     ]
                 ])
 
-                # --- FINAL MENTION FIX (HTML) ---
-                # Hum khud HTML link bana rahe hain taaki galti na ho
-                first_name = escape(message.from_user.first_name)
-                user_link = f"<a href='tg://user?id={message.from_user.id}'>{first_name}</a>"
+                # MENTION FIX (Clean Markdown)
+                # Name mein se brackets hata dete hain taaki markdown na fate
+                clean_name = message.from_user.first_name.replace("[", "").replace("]", "")
+                user_link = f"[{clean_name}](tg://user?id={message.from_user.id})"
 
                 warning_text = (
                     f"🚫 Hey {user_link}, your message was removed.\n\n"
-                    f"🔍 <b>Censored:</b>\n{censored_text}\n\n"
-                    f"⚠️ Please keep the chat respectful."
+                    f"🔍 **Censored:**\n{censored_text}\n\n"
+                    f"Please keep the chat respectful."
                 )
 
                 sent = await message.reply_text(
                     warning_text,
                     reply_markup=buttons,
-                    parse_mode=ParseMode.HTML, # Explicitly HTML
-                    disable_web_page_preview=True
+                    parse_mode=ParseMode.MARKDOWN # MARKDOWN MODE
                 )
                 await asyncio.sleep(60)
                 await sent.delete()
