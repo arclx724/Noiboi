@@ -1,6 +1,7 @@
 import re
 import aiohttp
 import asyncio
+from html import escape # HTML escape zaroori hai taaki naam mein agar < > ho to code na fate
 from pyrogram import Client, filters
 from pyrogram.enums import ChatMemberStatus, ParseMode
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -141,28 +142,29 @@ def register_abuse_handlers(app: Client):
             return
 
         text = message.text
-        censored_text = text
+        censored_text = escape(text) # Escape Text for HTML
         detected = False
 
-        # 1. Local Check (Using Markdown Spoilers ||word||)
+        # 1. Local Check
         for word in ABUSIVE_WORDS:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
-            if pattern.search(censored_text):
+            if pattern.search(text):
                 detected = True
-                censored_text = pattern.sub(lambda match: f"||{match.group(0)}||", censored_text)
+                # Replace with HTML Spoiler tag
+                censored_text = pattern.sub(lambda match: f"<tg-spoiler>{match.group(0)}</tg-spoiler>", censored_text)
 
         # 2. AI Check (Fallback)
         if not detected and OPENROUTER_API_KEY:
             if await check_toxicity_ai(text):
                 detected = True
-                censored_text = f"||{text}||"
+                censored_text = f"<tg-spoiler>{escape(text)}</tg-spoiler>"
 
         # 3. Action
         if detected:
             try:
                 await message.delete()
                 
-                # BUTTONS
+                # --- FINAL BUTTON FIX ---
                 buttons = InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("➕ Add Me", url=f"https://t.me/{BOT_USERNAME}?startgroup=true"),
@@ -170,20 +172,22 @@ def register_abuse_handlers(app: Client):
                     ]
                 ])
 
-                # MENTION (Manual Markdown Construction for 100% Safety)
-                # Format: [Name](tg://user?id=12345)
-                user_link = f"[{message.from_user.first_name}](tg://user?id={message.from_user.id})"
+                # --- FINAL MENTION FIX (HTML) ---
+                # Hum khud HTML link bana rahe hain taaki galti na ho
+                first_name = escape(message.from_user.first_name)
+                user_link = f"<a href='tg://user?id={message.from_user.id}'>{first_name}</a>"
 
                 warning_text = (
                     f"🚫 Hey {user_link}, your message was removed.\n\n"
-                    f"🔍 **Censored:**\n{censored_text}\n\n"
-                    f"Please keep the chat respectful."
+                    f"🔍 <b>Censored:</b>\n{censored_text}\n\n"
+                    f"⚠️ Please keep the chat respectful."
                 )
 
                 sent = await message.reply_text(
                     warning_text,
                     reply_markup=buttons,
-                    parse_mode=ParseMode.MARKDOWN  # Using MARKDOWN (Safer)
+                    parse_mode=ParseMode.HTML, # Explicitly HTML
+                    disable_web_page_preview=True
                 )
                 await asyncio.sleep(60)
                 await sent.delete()
