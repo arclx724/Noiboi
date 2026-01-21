@@ -7,6 +7,9 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from config import OPENROUTER_API_KEY, BOT_USERNAME
 import db
 
+# Print message to confirm NEW code is loaded
+print("✅ NEW ANTI_ABUSE MODULE LOADED")
+
 # Abusive Words List
 ABUSIVE_WORDS = [
     "madarchod", "Madharchod", "Madharchood", "behenchod", "madherchood", "madherchod", "bhenchod", "maderchod", "mc", "bc", "bsdk", 
@@ -144,7 +147,7 @@ def register_abuse_handlers(app: Client):
         censored_text = text
         detected = False
 
-        # 1. Local Check (Using Markdown Spoilers ||word||)
+        # 1. Local Check
         for word in ABUSIVE_WORDS:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
             if pattern.search(censored_text):
@@ -162,7 +165,7 @@ def register_abuse_handlers(app: Client):
             try:
                 await message.delete()
                 
-                # BUTTONS FIX (Sahi Icon aur Link ke saath)
+                # BUTTONS (Exact Match Security Bot)
                 buttons = InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("➕ Add Me", url=f"https://t.me/{BOT_USERNAME}?startgroup=true"),
@@ -170,13 +173,12 @@ def register_abuse_handlers(app: Client):
                     ]
                 ])
 
-                # MENTION FIX (Markdown Style: [Name](Link))
-                # Ye style kabhi fail nahi hota, Security Bot yahi use karta hai.
-                # Hum name se special characters hata rahe hain taaki link na toote.
+                # MENTION (Exact Match Security Bot - Blue Link)
+                # Hum brackets hata rahe hain taaki format na toote
                 clean_name = message.from_user.first_name.replace("[", "").replace("]", "")
                 user_link = f"[{clean_name}](tg://user?id={message.from_user.id})"
 
-                # TEXT FORMATTING (Exact Match)
+                # WARNING TEXT (Exact Match)
                 warning_text = (
                     f"🚫 Hey {user_link}, your message was removed.\n\n"
                     f"🔍 **Censored:**\n{censored_text}\n\n"
@@ -186,8 +188,7 @@ def register_abuse_handlers(app: Client):
                 sent = await message.reply_text(
                     warning_text,
                     reply_markup=buttons,
-                    disable_web_page_preview=True
-                    # ParseMode Default (Markdown) hi rahega jo Pyrogram ka standard hai
+                    parse_mode=ParseMode.MARKDOWN  # STRICT MARKDOWN
                 )
                 await asyncio.sleep(60)
                 await sent.delete()
