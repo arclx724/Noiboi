@@ -1,14 +1,37 @@
 import re
 import asyncio
 from pyrogram import filters
+from pyrogram.enums import ChatMemberStatus
 from pyrogram.types import Message
 
-from db import db
-from utils.admins import is_admin
-from ai.toxicity import check_toxicity_ai
-from config import OPENROUTER_API_KEY, ABUSIVE_WORDS
+from config import OPENROUTER_API_KEY
+import db
 
 
+# ---------------- ABUSIVE WORDS ----------------
+ABUSIVE_WORDS = [
+    "madarchod", "behenchod", "mc", "bc", "bsdk",
+    "bhosdike", "chutiya", "gandu", "lodu", "lauda",
+    "lund", "jhant", "chut", "tatte", "gaand",
+    "kamina", "harami", "saala", "kutte",
+    "randi", "bkl", "fuck", "bitch", "asshole",
+    "motherfucker", "dick", "tmkc", "mkc"
+]
+
+
+# ---------------- ADMIN CHECK ----------------
+async def is_admin(app, chat_id: int, user_id: int) -> bool:
+    try:
+        member = await app.get_chat_member(chat_id, user_id)
+        return member.status in (
+            ChatMemberStatus.ADMINISTRATOR,
+            ChatMemberStatus.OWNER,
+        )
+    except Exception:
+        return False
+
+
+# ---------------- ABUSE HANDLER ----------------
 def register_abuse_handlers(app):
 
     @app.on_message(filters.text & filters.group & ~filters.bot, group=10)
@@ -19,20 +42,20 @@ def register_abuse_handlers(app):
 
         chat_id = message.chat.id
         user_id = message.from_user.id
+        text = message.text or ""
 
         # Feature enabled?
         if not await db.is_abuse_enabled(chat_id):
             return
 
         # Admin immune
-        if await is_admin(chat_id, user_id):
+        if await is_admin(app, chat_id, user_id):
             return
 
-        # Whitelisted user
+        # Whitelisted
         if await db.is_user_whitelisted(chat_id, user_id):
             return
 
-        text = message.text or ""
         detected = False
 
         # -------- LOCAL WORD CHECK --------
@@ -41,12 +64,13 @@ def register_abuse_handlers(app):
                 detected = True
                 break
 
-        # -------- AI TOXICITY CHECK --------
+        # -------- AI CHECK (OPTIONAL) --------
         if not detected and OPENROUTER_API_KEY:
             try:
+                from ai.toxicity import check_toxicity_ai
                 detected = await check_toxicity_ai(text)
             except Exception as e:
-                print("AI toxicity error:", e)
+                print("AI check failed:", e)
 
         if not detected:
             return
@@ -54,8 +78,7 @@ def register_abuse_handlers(app):
         try:
             await message.delete()
 
-            user = message.from_user
-            name = "ㅤ" + (user.first_name or "User") + " ㅤ〱"
+            name = "ㅤ" + (message.from_user.first_name or "User") + " ㅤ〱"
 
             reply_text = (
                 f"🚫 Hey {name}, your message was removed.\n\n"
@@ -68,4 +91,4 @@ def register_abuse_handlers(app):
             await sent.delete()
 
         except Exception as e:
-            print("Abuse watcher error:", e)
+            print("Abuse handler error:", e)
