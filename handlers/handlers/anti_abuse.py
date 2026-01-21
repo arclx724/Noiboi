@@ -149,20 +149,20 @@ def register_abuse_handlers(app: Client):
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
             if pattern.search(censored_text):
                 detected = True
-                censored_text = pattern.sub(lambda match: f"||{match.group(0)}||", censored_text)
+                censored_text = pattern.sub(lambda match: f"<tg-spoiler>{match.group(0)}</tg-spoiler>", censored_text)
 
         # 2. AI Check (Fallback)
         if not detected and OPENROUTER_API_KEY:
             if await check_toxicity_ai(text):
                 detected = True
-                censored_text = f"||{text}||"
+                censored_text = f"<tg-spoiler>{text}</tg-spoiler>"
 
         # 3. Action
         if detected:
             try:
                 await message.delete()
                 
-                # UPDATED BUTTONS
+                # FIXED BUTTONS
                 buttons = InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("➕ Add Me", url=f"https://t.me/{BOT_USERNAME}?startgroup=true"),
@@ -170,9 +170,8 @@ def register_abuse_handlers(app: Client):
                     ]
                 ])
 
-                # UPDATED MENTION FORMAT
-                # .mention attribute automatically handles Markdown formatting safely
-                user_mention = message.from_user.mention(style="md")
+                # FIXED MENTION (Using HTML style)
+                user_mention = message.from_user.mention(style="html")
 
                 warning_text = (
                     f"🚫 Hey {user_mention}, your message was removed.\n\n"
@@ -183,10 +182,10 @@ def register_abuse_handlers(app: Client):
                 sent = await message.reply_text(
                     warning_text,
                     reply_markup=buttons,
-                    parse_mode=ParseMode.MARKDOWN 
+                    parse_mode=ParseMode.HTML  # Changed to HTML to fix the tag issue
                 )
                 await asyncio.sleep(60)
                 await sent.delete()
             except Exception as e:
                 print(f"Error deleting abuse: {e}")
-                                 
+                
