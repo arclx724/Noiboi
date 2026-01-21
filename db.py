@@ -1,10 +1,5 @@
 # ============================================================
-#Group Manager Bot
-# Author: LearningBotsOfficial (https://github.com/LearningBotsOfficial) 
-# Support: https://t.me/LearningBotsCommunity
-# Channel: https://t.me/learning_bots
-# YouTube: https://youtube.com/@learning_bots
-# License: Open-source (keep credits, no resale)
+# Group Manager Bot - Database Module
 # ============================================================
 
 import motor.motor_asyncio
@@ -101,7 +96,8 @@ async def clear_group_data(chat_id: int):
     await db.welcome.delete_one({"chat_id": chat_id})
     await db.locks.delete_one({"chat_id": chat_id})
     await db.warns.delete_many({"chat_id": chat_id})
-
+    await db.abuse_settings.delete_one({"chat_id": chat_id})
+    await db.auth_users.delete_many({"chat_id": chat_id})
 
 # ==========================================================
 # 👤 USER SYSTEM (for broadcast)
@@ -117,9 +113,47 @@ async def get_all_users():
     cursor = db.users.find({}, {"_id": 0, "user_id": 1})
     users = []
     async for document in cursor:
-        # Make sure the document has 'user_id'
         if "user_id" in document:
             users.append(document["user_id"])
     return users
 
+# ==========================================================
+# 🤬 ABUSE & AUTH SYSTEM (New Added Features)
+# ==========================================================
 
+async def is_abuse_enabled(chat_id: int) -> bool:
+    data = await db.abuse_settings.find_one({"chat_id": chat_id})
+    return data.get("enabled", False) if data else False
+
+async def set_abuse_status(chat_id: int, enabled: bool):
+    await db.abuse_settings.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"enabled": enabled}},
+        upsert=True
+    )
+
+async def add_whitelist(chat_id: int, user_id: int):
+    await db.auth_users.update_one(
+        {"chat_id": chat_id, "user_id": user_id},
+        {"$set": {"is_auth": True}},
+        upsert=True
+    )
+
+async def remove_whitelist(chat_id: int, user_id: int):
+    await db.auth_users.delete_one({"chat_id": chat_id, "user_id": user_id})
+
+async def is_user_whitelisted(chat_id: int, user_id: int) -> bool:
+    data = await db.auth_users.find_one({"chat_id": chat_id, "user_id": user_id})
+    return bool(data)
+
+async def get_whitelisted_users(chat_id: int):
+    # Returns a list of user_ids
+    cursor = db.auth_users.find({"chat_id": chat_id})
+    users = []
+    async for doc in cursor:
+        users.append(doc["user_id"])
+    return users
+
+async def remove_all_whitelist(chat_id: int):
+    await db.auth_users.delete_many({"chat_id": chat_id})
+    
