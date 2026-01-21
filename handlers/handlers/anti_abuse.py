@@ -144,25 +144,25 @@ def register_abuse_handlers(app: Client):
         censored_text = text
         detected = False
 
-        # 1. Local Check
+        # 1. Local Check (Using Markdown Spoilers ||word||)
         for word in ABUSIVE_WORDS:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
             if pattern.search(censored_text):
                 detected = True
-                censored_text = pattern.sub(lambda match: f"<tg-spoiler>{match.group(0)}</tg-spoiler>", censored_text)
+                censored_text = pattern.sub(lambda match: f"||{match.group(0)}||", censored_text)
 
         # 2. AI Check (Fallback)
         if not detected and OPENROUTER_API_KEY:
             if await check_toxicity_ai(text):
                 detected = True
-                censored_text = f"<tg-spoiler>{text}</tg-spoiler>"
+                censored_text = f"||{text}||"
 
         # 3. Action
         if detected:
             try:
                 await message.delete()
                 
-                # FIXED BUTTONS
+                # BUTTONS
                 buttons = InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("➕ Add Me", url=f"https://t.me/{BOT_USERNAME}?startgroup=true"),
@@ -170,11 +170,12 @@ def register_abuse_handlers(app: Client):
                     ]
                 ])
 
-                # FIXED MENTION (Using HTML style)
-                user_mention = message.from_user.mention(style="html")
+                # MENTION (Manual Markdown Construction for 100% Safety)
+                # Format: [Name](tg://user?id=12345)
+                user_link = f"[{message.from_user.first_name}](tg://user?id={message.from_user.id})"
 
                 warning_text = (
-                    f"🚫 Hey {user_mention}, your message was removed.\n\n"
+                    f"🚫 Hey {user_link}, your message was removed.\n\n"
                     f"🔍 **Censored:**\n{censored_text}\n\n"
                     f"Please keep the chat respectful."
                 )
@@ -182,7 +183,7 @@ def register_abuse_handlers(app: Client):
                 sent = await message.reply_text(
                     warning_text,
                     reply_markup=buttons,
-                    parse_mode=ParseMode.HTML  # Changed to HTML to fix the tag issue
+                    parse_mode=ParseMode.MARKDOWN  # Using MARKDOWN (Safer)
                 )
                 await asyncio.sleep(60)
                 await sent.delete()
