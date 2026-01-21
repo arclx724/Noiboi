@@ -63,9 +63,10 @@ def register_abuse_handlers(app: Client):
                     if resp.status == 200:
                         data = await resp.json()
                         answer = data['choices'][0]['message']['content'].strip().upper()
+                        print(f"🤖 AI Response: {answer}")  # DEBUG PRINT
                         return "YES" in answer
         except Exception as e:
-            print(f"AI Check Error: {e}")
+            print(f"❌ AI Check Error: {e}")
         return False
 
     # ================= COMMANDS =================
@@ -86,82 +87,53 @@ def register_abuse_handlers(app: Client):
         state = "Enabled ✅" if new_status else "Disabled ❌"
         await message.reply_text(f"🛡 Abuse protection is now {state}")
 
-    @app.on_message(filters.command(["auth", "promote"]) & filters.group)
-    async def auth_user(client, message):
-        if not await is_admin(message.chat.id, message.from_user.id):
-            return
-
-        target = message.reply_to_message.from_user if message.reply_to_message else None
-        if not target:
-            return await message.reply_text("⚠️ Reply to a user to auth them.")
-
-        await db.add_whitelist(message.chat.id, target.id)
-        await message.reply_text(f"✅ {target.mention} is now whitelisted from abuse filter.")
-
-    @app.on_message(filters.command("unauth") & filters.group)
-    async def unauth_user(client, message):
-        if not await is_admin(message.chat.id, message.from_user.id):
-            return
-
-        target = message.reply_to_message.from_user if message.reply_to_message else None
-        if not target:
-            return await message.reply_text("⚠️ Reply to a user to un-auth them.")
-
-        await db.remove_whitelist(message.chat.id, target.id)
-        await message.reply_text(f"🚫 {target.mention} removed from whitelist.")
-
-    @app.on_message(filters.command("authlist") & filters.group)
-    async def auth_list(client, message):
-        if not await is_admin(message.chat.id, message.from_user.id):
-            return
-
-        users = await db.get_whitelisted_users(message.chat.id)
-        if not users:
-            return await message.reply_text("📂 Whitelist is empty.")
-        
-        text = "📋 **Whitelisted Users:**\n"
-        for uid in users:
-            try:
-                u = await client.get_users(uid)
-                text += f"- {u.mention}\n"
-            except:
-                text += f"- ID: {uid}\n"
-        await message.reply_text(text)
-
     # ================= WATCHER (Group=10) =================
     
     @app.on_message(filters.text & filters.group & ~filters.bot, group=10)
     async def abuse_watcher(client, message):
+        
+        # 1. Check if Enabled
         if not await db.is_abuse_enabled(message.chat.id):
+            # print("Skipping: Abuse filter is OFF in this chat.") 
             return
 
-        # Skip Admins and Whitelisted Users
+        # 2. Check if Admin (Admins are immune!)
+        # Agar aap Owner/Admin ho toh yahan se return ho jayega.
+        # Test karne ke liye kisi normal member id se check karo.
         if await is_admin(message.chat.id, message.from_user.id):
+            print(f"Skipping: User {message.from_user.first_name} is Admin.")
             return
+
+        # 3. Check Whitelist
         if await db.is_user_whitelisted(message.chat.id, message.from_user.id):
+            print(f"Skipping: User {message.from_user.first_name} is Whitelisted.")
             return
 
         text = message.text
         censored_text = text
         detected = False
 
-        # 1. Local Check
+        # 4. Local Word Check
         for word in ABUSIVE_WORDS:
             pattern = re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
             if pattern.search(censored_text):
                 detected = True
+                print(f"🤬 Abuse Detected (Local): {word}") # DEBUG PRINT
                 censored_text = pattern.sub(lambda match: f"||{match.group(0)}||", censored_text)
 
-        # 2. AI Check (Fallback)
+        # 5. AI Check (Fallback)
         if not detected and OPENROUTER_API_KEY:
+            # print("Checking with AI...")
             if await check_toxicity_ai(text):
                 detected = True
+                print("🤖 Abuse Detected (AI)") # DEBUG PRINT
                 censored_text = f"||{text}||"
 
-        # 3. Action
+        # 6. Action: DELETE
         if detected:
             try:
                 await message.delete()
+                print("🗑 Message Deleted Successfully") # DEBUG PRINT
                 
                 buttons = InlineKeyboardMarkup([
                     [InlineKeyboardButton("📢 Updates", url=f"https://t.me/{BOT_USERNAME}")]
@@ -181,5 +153,5 @@ def register_abuse_handlers(app: Client):
                 await asyncio.sleep(60)
                 await sent.delete()
             except Exception as e:
-                print(f"Error deleting abuse: {e}")
+                print(f"❌ Error deleting abuse: {e}")
                 
