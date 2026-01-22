@@ -1,128 +1,90 @@
 import time
 from pyrogram import Client, filters
-from pyrogram.types import ChatMemberUpdated, ChatPrivileges
+from pyrogram.types import ChatMemberUpdated, ChatPrivileges, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ChatMemberStatus
+from config import OWNER_ID, BOT_USERNAME
+import db
 
-from config import OWNER_ID
-import db  # must have: is_user_whitelisted(chat_id, user_id)
+# Config: Ek din mein max kitne users ko kick/ban/promote kar sakte hain
+DAILY_LIMIT = 10 
 
-# ================= CONFIG =================
-
-BAN_LIMIT = 10
-TIME_FRAME = 86400  # 24 hours (in seconds)
-
-FLOOD_CACHE = {}
-
-# ================= HELPERS =================
-
-async def is_whitelisted(chat_id: int, user_id: int) -> bool:
-    if user_id == OWNER_ID:
-        return True
-    if await db.is_user_whitelisted(chat_id, user_id):
-        return True
-    return False
-
-
-async def check_ban_velocity(chat_id: int, user_id: int) -> bool:
-    now = time.time()
-
-    FLOOD_CACHE.setdefault(chat_id, {})
-    FLOOD_CACHE[chat_id].setdefault(user_id, [])
-
-    # Keep only last 24h
-    FLOOD_CACHE[chat_id][user_id] = [
-        t for t in FLOOD_CACHE[chat_id][user_id]
-        if now - t < TIME_FRAME
-    ]
-
-    FLOOD_CACHE[chat_id][user_id].append(now)
-
-    count = len(FLOOD_CACHE[chat_id][user_id])
-    print(f"🚨 BAN COUNT | User {user_id}: {count}/{BAN_LIMIT}")
-
-    return count >= BAN_LIMIT
-
-
-async def punish_hacker(client: Client, chat_id: int, user, reason: str):
+async def punish_nuker(client, chat_id, user, count):
+    """
+    Hacker ko Demote karega
+    """
     try:
-        me = await client.get_chat_member(chat_id, client.me.id)
-
-        if not me.privileges or not me.privileges.can_promote_members:
-            print("❌ Bot has no demotion rights")
-            return
-
+        # Demote immediately
         await client.promote_chat_member(
-            chat_id=chat_id,
-            user_id=user.id,
-            privileges=ChatPrivileges(
-                can_manage_chat=False,
-                can_delete_messages=False,
-                can_manage_video_chats=False,
-                can_restrict_members=False,
-                can_promote_members=False,
-                can_change_info=False,
-                can_invite_users=False,
-                can_pin_messages=False,
-                can_post_messages=False,
-                can_edit_messages=False,
-                is_anonymous=False
-            )
+            chat_id,
+            user.id,
+            privileges=ChatPrivileges(can_manage_chat=False) # Sab rights cheen lo
         )
-
+        
+        # Alert Message
         await client.send_message(
             chat_id,
-            f"🚨 **ANTI-NUKE ACTIVATED** 🚨\n\n"
-            f"👮 **Admin:** {user.mention}\n"
-            f"🛑 **Reason:** {reason}\n"
-            f"✅ **Action:** Admin Demoted Automatically"
+            f"🚨 **ANTI-NUKE TRIGGERED**\n\n"
+            f"👮‍♂️ **Admin:** {user.mention}\n"
+            f"🛑 **Status:** Demoted Successfully.\n"
+            f"⚠️ **Reason:** Crossed daily limit ({count}/{DAILY_LIMIT})"
         )
-
     except Exception as e:
-        await client.send_message(
-            chat_id,
-            f"⚠️ **ANTI-NUKE FAILED**\n\n"
-            f"Admin: {user.mention}\n"
-            f"Error: `{e}`"
-        )
+        print(f"Failed to punish {user.first_name}: {e}")
 
-# ================= MAIN WATCHER =================
 
 def register_anti_nuke(app: Client):
 
+    # --- WATCHER: Kicks, Bans & Promotions ---
     @app.on_chat_member_updated(filters.group)
-    async def anti_nuke_watcher(client: Client, update: ChatMemberUpdated):
-
+    async def limit_watcher(client, update: ChatMemberUpdated):
         chat = update.chat
+        
+        # Actor = Jisne action liya (Admin)
+        if not update.from_user:
+            return
         actor = update.from_user
-
-        if not actor:
-            return
-        if actor.id == client.me.id:
-            return
-        if await is_whitelisted(chat.id, actor.id):
+        
+        # 1. Ignore Safe Users (Owner & Bot)
+        if actor.id == client.me.id or actor.id == OWNER_ID:
             return
 
-        old = update.old_chat_member
-        new = update.new_chat_member
+        # 2. Check Action Type
+        old = update.old_chat_member.status if update.old_chat_member else ChatMemberStatus.LEFT
+        new = update.new_chat_member.status if update.new_chat_member else ChatMemberStatus.LEFT
+        
+        action_detected = False
+        
+        # Case A: Kick/Ban (Member -> Left/Banned)
+        if old in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR] and \
+           new in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED]:
+            # Agar Actor != Target (Matlab kisi ne nikala)
+            if actor.id != update.new_chat_member.user.id:
+                action_detected = True
 
-        if not old or not new:
-            return
+        # Case B: Promotion (Member -> Admin)
+        elif old not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and \
+             new in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+            action_detected = True
 
-        target = new.user
-        if not target:
-            return
+        # 3. Check Database Limit
+        if action_detected:
+            is_allowed, current_count = await db.check_admin_limit(chat.id, actor.id, DAILY_LIMIT)
+            
+            # Debug Print (Terminal mein dikhega)
+            print(f"🛡️ Security: {actor.first_name} Action {current_count}/{DAILY_LIMIT}")
 
-        # ================= BAN / KICK DETECTION =================
-        # Member/Admin -> Not a member = Ban/Kick
-        if old.is_member and not new.is_member:
-            if actor.id == target.id:
-                return  # self leave
+            if not is_allowed:
+                # Limit Cross -> Demote!
+                await punish_nuker(client, chat.id, actor, current_count)
 
-            exceeded = await check_ban_velocity(chat.id, actor.id)
-            if exceeded:
-                await punish_hacker(
-                    client,
-                    chat.id,
-                    actor,
-                    "Mass bans detected (10 bans in 24 hours)"
-                )
+    # --- COMMAND: Reset Limits (Owner Only) ---
+    @app.on_message(filters.command("resetlimits") & filters.group)
+    async def reset_limits_cmd(client, message):
+        user = await client.get_chat_member(message.chat.id, message.from_user.id)
+        
+        if user.status != ChatMemberStatus.OWNER and message.from_user.id != OWNER_ID:
+            return await message.reply_text("❌ Sirf Group Owner limits reset kar sakta hai.")
+            
+        await db.reset_admin_limit(message.chat.id)
+        await message.reply_text("✅ **Success:** All admin limits have been reset for this group.")
+
