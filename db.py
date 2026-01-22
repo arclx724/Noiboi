@@ -5,6 +5,7 @@
 import motor.motor_asyncio
 from config import MONGO_URI, DB_NAME
 import logging
+import time  # <--- Added for Anti-Nuke time calculation
 
 # setup logging
 logging.basicConfig(
@@ -98,6 +99,7 @@ async def clear_group_data(chat_id: int):
     await db.warns.delete_many({"chat_id": chat_id})
     await db.abuse_settings.delete_one({"chat_id": chat_id})
     await db.auth_users.delete_many({"chat_id": chat_id})
+    await db.admin_limits.delete_many({"chat_id": chat_id}) # Added limits cleanup
 
 # ==========================================================
 # 👤 USER SYSTEM (for broadcast)
@@ -118,7 +120,7 @@ async def get_all_users():
     return users
 
 # ==========================================================
-# 🤬 ABUSE & AUTH SYSTEM (New Added Features)
+# 🤬 ABUSE & AUTH SYSTEM
 # ==========================================================
 
 async def is_abuse_enabled(chat_id: int) -> bool:
@@ -156,4 +158,54 @@ async def get_whitelisted_users(chat_id: int):
 
 async def remove_all_whitelist(chat_id: int):
     await db.auth_users.delete_many({"chat_id": chat_id})
+
+# ==========================================================
+# ☢️ ANTI-NUKE SYSTEM (NEW ADDED)
+# ==========================================================
+
+async def check_admin_limit(chat_id: int, user_id: int, limit: int = 10):
+    """
+    Check karega ki admin ne aaj limit cross ki hai ya nahi.
+    Returns: (Allowed: bool, Current_Count: int)
+    """
+    current_time = time.time()
+    
+    # Record find karo (Admin Limits Collection mein)
+    record = await db.admin_limits.find_one({"chat_id": chat_id, "user_id": user_id})
+    
+    if record:
+        # Reset Time Check (24 Hours = 86400 seconds)
+        if current_time > record.get('reset_time', 0):
+            # Limit Reset karo
+            await db.admin_limits.update_one(
+                {"_id": record['_id']},
+                {"$set": {"count": 1, "reset_time": current_time + 86400}}
+            )
+            return True, 1
+            
+        # Agar Time Valid hai, to Count check karo
+        elif record['count'] < limit:
+            # Count badhao
+            await db.admin_limits.update_one(
+                {"_id": record['_id']},
+                {"$inc": {"count": 1}}
+            )
+            return True, record['count'] + 1
+            
+        # Agar Limit Cross ho gayi
+        else:
+            return False, limit
+    else:
+        # Pehli baar entry (New Record)
+        await db.admin_limits.insert_one({
+            "chat_id": chat_id, 
+            "user_id": user_id, 
+            "count": 1, 
+            "reset_time": current_time + 86400
+        })
+        return True, 1
+
+async def reset_admin_limit(chat_id: int):
+    """Poore group ki limits reset karega (Owner Command)"""
+    await db.admin_limits.delete_many({"chat_id": chat_id})
     
