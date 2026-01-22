@@ -8,12 +8,12 @@ from config import OWNER_ID, BOT_USERNAME
 import db
 
 # ================= CONFIGURATION =================
-# Limit: 6 actions in 120 seconds (2 minutes)
-VELOCITY_LIMIT = 6
-TIME_FRAME = 120 
+# Ab Limit kam kar di hai testing ke liye:
+# 3 Actions in 60 Seconds -> Trigger
+VELOCITY_LIMIT = 3
+TIME_FRAME = 60
 
-# In-Memory Cache for Velocity Checks (Super Fast)
-# Format: { chat_id: { user_id: [timestamp1, timestamp2, ...] } }
+# In-Memory Cache
 FLOOD_CACHE = {}
 
 logger = logging.getLogger(__name__)
@@ -23,50 +23,43 @@ def register_anti_nuke(app: Client):
     # ================= HELPERS =================
 
     async def is_whitelisted(chat_id: int, user_id: int) -> bool:
-        # 1. Check Owner
         if user_id == OWNER_ID:
             return True
-        # 2. Check Database Whitelist (Trust Users)
         if await db.is_user_whitelisted(chat_id, user_id):
             return True
         return False
 
     async def check_velocity(chat_id: int, user_id: int) -> bool:
-        """
-        Returns True if limit exceeded (NUKE DETECTED), False otherwise.
-        """
         current_time = time.time()
         
-        # Initialize structure
         if chat_id not in FLOOD_CACHE:
             FLOOD_CACHE[chat_id] = {}
         if user_id not in FLOOD_CACHE[chat_id]:
             FLOOD_CACHE[chat_id][user_id] = []
 
-        # Filter out old timestamps (older than 2 mins)
-        # We keep only actions that happened in the last TIME_FRAME
+        # Purane actions hatao (Clean up)
         FLOOD_CACHE[chat_id][user_id] = [
             t for t in FLOOD_CACHE[chat_id][user_id] 
             if current_time - t < TIME_FRAME
         ]
 
-        # Add new action timestamp
+        # Naya action jodo
         FLOOD_CACHE[chat_id][user_id].append(current_time)
+        
+        count = len(FLOOD_CACHE[chat_id][user_id])
+        print(f"⚠️ Security Log: User {user_id} Action Count: {count}/{VELOCITY_LIMIT}") # DEBUG LOG
 
-        # Check count
-        if len(FLOOD_CACHE[chat_id][user_id]) > VELOCITY_LIMIT:
-            # Clear cache for this user to prevent spamming alerts
-            FLOOD_CACHE[chat_id][user_id] = []
+        if count > VELOCITY_LIMIT:
+            FLOOD_CACHE[chat_id][user_id] = [] # Reset after punishment
             return True
         
         return False
 
     async def punish_hacker(client: Client, chat_id: int, user, reason: str):
-        """
-        Strip admin rights immediately and announce.
-        """
         try:
-            # Demote: Set all permissions to False
+            print(f"🚨 PUNISHING: {user.first_name} for {reason}") # DEBUG LOG
+            
+            # Demote immediately
             no_rights = ChatPrivileges(
                 can_manage_chat=False,
                 can_delete_messages=False,
@@ -81,111 +74,88 @@ def register_anti_nuke(app: Client):
                 is_anonymous=False
             )
 
-            # Apply Demotion
             await client.promote_chat_member(
                 chat_id=chat_id,
                 user_id=user.id,
                 privileges=no_rights
             )
 
-            # Send Alert
-            alert_text = (
-                f"🚨 **SECURITY ALERT: ANTI-NUKE** 🚨\n\n"
-                f"👮‍♂️ **Admin:** {user.mention}\n"
-                f"🛑 **Action:** {reason}\n"
-                f"⚡ **Penalty:** Admin Rights Stripped.\n\n"
-                f"⚠️ *The user exceeded safety limits (Velocity Check).*"
-            )
-            
-            # Button to check
+            # Alert Message
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔍 View Admin", url=f"tg://user?id={user.id}")]
             ])
 
-            await client.send_message(chat_id, alert_text, reply_markup=buttons)
-            logger.warning(f"ANTI-NUKE: Demoted {user.id} in {chat_id} for {reason}")
+            await client.send_message(
+                chat_id, 
+                f"🚨 **SECURITY ALERT** 🚨\n\n"
+                f"👮‍♂️ **Admin:** {user.mention}\n"
+                f"🛑 **Action:** {reason}\n"
+                f"⚡ **Penalty:** Demoted Immediately.\n"
+                f"⚠️ *Limit exceeded (>{VELOCITY_LIMIT} actions)*",
+                reply_markup=buttons
+            )
 
         except Exception as e:
-            logger.error(f"Failed to punish user {user.id}: {e}")
+            print(f"❌ Failed to punish: {e}")
 
     # ================= WATCHER LOGIC =================
 
     @app.on_chat_member_updated(filters.group)
     async def anti_nuke_watcher(client, update: ChatMemberUpdated):
-        """
-        Watches for:
-        1. Mass Kicks/Bans
-        2. Mass Promotions
-        3. Bot Promotions
-        """
         chat = update.chat
         
-        # Ensure we have the 'actor' (Who did the action)
+        # Actor woh hai jisne action liya (Admin)
         if not update.from_user:
             return
-
         actor = update.from_user
         
-        # --- 1. IGNORE SAFE USERS ---
-        # Owner, Bot itself, and Whitelisted users are immune
-        if actor.id == client.me.id:
+        # Target woh hai jiske saath action hua (Member)
+        target = update.new_chat_member.user
+
+        # 1. Ignore Safe Users (Bot, Owner, Whitelisted)
+        if actor.id == client.me.id or actor.id == OWNER_ID:
             return
         if await is_whitelisted(chat.id, actor.id):
             return
 
-        # --- 2. DETECT ACTION TYPE ---
+        # Status check
+        old = update.old_chat_member.status if update.old_chat_member else ChatMemberStatus.LEFT
+        new = update.new_chat_member.status if update.new_chat_member else ChatMemberStatus.LEFT
         
-        is_ban_kick = False
-        is_promote = False
-        is_bot_promote = False
+        action_detected = False
+        action_type = ""
 
-        # Status transitions
-        old_status = update.old_chat_member.status if update.old_chat_member else ChatMemberStatus.LEFT
-        new_status = update.new_chat_member.status if update.new_chat_member else ChatMemberStatus.LEFT
+        # --- DETECTION LOGIC ---
 
-        # A. KICK / BAN DETECTION
-        # If user was a member/admin and is now BANNED or LEFT (and actor is not the user themselves)
-        if (old_status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR] and
-            new_status in [ChatMemberStatus.BANNED, ChatMemberStatus.LEFT]):
+        # Case A: KICK (Remove from Group) or BAN
+        # Agar purana status Member/Admin/Restricted tha -> Aur naya Left/Banned hai
+        if old in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.RESTRICTED] and \
+           new in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED]:
             
-            # If actor.id != new_chat_member.user.id, it means someone else kicked them.
-            if actor.id != update.new_chat_member.user.id:
-                is_ban_kick = True
+            # IMP: Agar User ne khud leave kiya, toh Actor ID == Target ID hoga.
+            # Agar Actor != Target, iska matlab kisi ne nikala hai (Kick/Ban).
+            if actor.id != target.id:
+                action_detected = True
+                action_type = "Mass Kick/Ban"
+                print(f"👀 Kick Detected by {actor.first_name}")
 
-        # B. PROMOTION DETECTION
-        # If user was not admin, and is now ADMIN/OWNER
-        if (old_status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and
-            new_status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]):
+        # Case B: PROMOTION (Admin banana)
+        if old not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and \
+           new in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
             
-            is_promote = True
+            action_detected = True
+            action_type = "Mass Promotion"
             
-            # SPECIAL RULE: Bot Promotion
-            if update.new_chat_member.user.is_bot:
-                is_bot_promote = True
+            # Bot Promotion check (Strict Rule)
+            if target.is_bot:
+                await punish_hacker(client, chat.id, actor, "Adding/Promoting Bots")
+                return
 
-        # --- 3. APPLY RULES ---
-
-        # RULE 1: Never Promote a Bot (Instant Strike)
-        if is_bot_promote:
-            await punish_hacker(client, chat.id, actor, "Promoting a Bot (Unauthorized)")
-            # Also demote the bot they added
-            try:
-                await client.promote_chat_member(
-                    chat.id, 
-                    update.new_chat_member.user.id, 
-                    ChatPrivileges(can_manage_chat=False) # No rights
-                )
-            except:
-                pass
-            return
-
-        # RULE 2: Velocity Check (Mass Ban/Kick/Promote)
-        if is_ban_kick or is_promote:
+        # --- EXECUTION ---
+        if action_detected:
             # Check Speed
-            limit_exceeded = await check_velocity(chat.id, actor.id)
-            
-            if limit_exceeded:
-                action_type = "Mass Kicking/Banning" if is_ban_kick else "Mass Promoting"
-                await punish_hacker(client, chat.id, actor, f"{action_type} (> {VELOCITY_LIMIT} actions)")
+            if await check_velocity(chat.id, actor.id):
+                await punish_hacker(client, chat.id, actor, action_type)
+
 
 
