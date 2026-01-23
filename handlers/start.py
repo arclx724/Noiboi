@@ -27,7 +27,7 @@ def register_handlers(app: Client):
 
    ✨ Hello {user}! ✨
 
-👋 I am Nomad 🤖 
+👋 I am Mini Aadi 
 
 Highlights:
 ─────────────────────────────
@@ -89,6 +89,9 @@ Choose a category below to explore commands:
             ],
             [
                 InlineKeyboardButton("⌂ Moderation ⌂", callback_data="moderation")
+            ],
+            [
+                InlineKeyboardButton("⌂ Anti-Cheater ⌂", callback_data="anti-cheater")
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
         ])
@@ -206,6 +209,42 @@ Manage your group easily with these tools:
 💡 Example:
 Reply to a user or type  
 <code>/ban @username</code>
+
+"""
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back", callback_data="help")]
+            ])
+    
+            media = InputMediaPhoto(media=START_IMAGE, caption=text)
+            await callback_query.message.edit_media(media=media, reply_markup=buttons)
+            await callback_query.answer()
+    
+        except Exception as e:
+            print(f"Error in info_callback: {e}")
+            await callback_query.answer("❌ Something went wrong.", show_alert=True)
+
+    # ==========================================================
+# Moderation Callback_query
+# ==========================================================
+    @app.on_callback_query(filters.regex("anti-cheater"))
+    async def info_callback(client, callback_query):
+        try:
+            text = """
+╔══════════════════╗  
+    👮 Anti-Cheater ꜱʏꜱᴛᴇᴍ  
+╚══════════════════╝  
+
+- Works automatically — no commands needed
+
+🚨 The bot tracks admin actions.
+- If an admin kicks or bans more than 10 users in 24 hours, they are auto‑demoted.
+
+- Limits reset automatically every 24 hours.
+
+🔒 Only admins promoted by this bot can be auto‑demoted.
+Use /promote and give the bot Add Admin permission.
+
+🛡️ Protects your group from fake or abusive admins.</code>
 
 """
             buttons = InlineKeyboardMarkup([
