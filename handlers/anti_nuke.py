@@ -1,47 +1,53 @@
-
 import time
 from pyrogram import Client, filters
 from pyrogram.types import ChatMemberUpdated, ChatPrivileges
 from pyrogram.enums import ChatMemberStatus
+from config import OWNER_ID
+import db
 
 # ================= CONFIGURATION =================
-# Testing ke liye Limit = 3 rakho
+# Production Limit (Normal Use ke liye)
+# Recommended: 15 actions in 5 minutes (300 seconds)
+# Aap apne hisaab se set kar lo
 LIMIT = 3
-TIME_FRAME = 60 
+TIME_FRAME = 300 
 
 # RAM Cache
 TRAFFIC = {}
 
-async def demote_admin(client, chat_id, user_id, user_name):
-    """Admin ko demote karne ka function"""
+async def punish_nuker(client, chat_id, user, count):
+    """
+    Hacker ko Demote karega
+    """
     try:
-        await client.send_message(chat_id, f"⚡ **ANTI-NUKE:** Demoting {user_name}...")
-        
-        # Demote Logic
+        # Pehle Demote karo (Fastest Action)
         await client.promote_chat_member(
             chat_id,
-            user_id,
-            privileges=ChatPrivileges(can_manage_chat=False) # Sab rights cheen lo
+            user.id,
+            privileges=ChatPrivileges(can_manage_chat=False)
         )
-        await client.send_message(chat_id, f"✅ **SUCCESS:** {user_name} Demoted!")
+        
+        # Fir Alert bhejo
+        await client.send_message(
+            chat_id,
+            f"🚨 **ANTI-NUKE TRIGGERED**\n\n"
+            f"👮‍♂️ **Admin:** {user.mention}\n"
+            f"🔢 **Action Count:** {count}/{LIMIT}\n"
+            f"✅ **Penalty:** Admin Demoted Successfully."
+        )
         
     except Exception as e:
-        await client.send_message(chat_id, f"❌ **FAIL:** Error: `{e}`")
+        # Agar fail ho jaye (Hierarchy Issue)
+        await client.send_message(
+            chat_id,
+            f"⚠️ **Security Alert:** Detected mass-action by {user.mention}, but I cannot demote them due to Telegram limitations (My rank is lower)."
+        )
 
 def register_anti_nuke(app: Client):
 
-    # --- 🛠 TEST COMMAND ---
-    @app.on_message(filters.command("trydemote") & filters.group)
-    async def test_demote(client, message):
-        if not message.reply_to_message:
-            return await message.reply("❌ Reply karke command do.")
-        target = message.reply_to_message.from_user
-        await demote_admin(client, message.chat.id, target.id, target.first_name)
-
-    # --- 🛡️ MAIN WATCHER (Priority Group 5) ---
-    # Group=5 ka matlab hai ye sabse alag chalega, koi isse rok nahi payega
+    # --- 🛡️ MAIN WATCHER (High Priority) ---
     @app.on_chat_member_updated(filters.group, group=5)
-    async def nuclear_watcher(client, update: ChatMemberUpdated):
+    async def nuke_watcher(client, update: ChatMemberUpdated):
         chat = update.chat
         
         if not update.from_user:
@@ -49,40 +55,47 @@ def register_anti_nuke(app: Client):
         actor = update.from_user
         target = update.new_chat_member.user
 
-        # Sirf Bot ko ignore karo, Owner ko bhi pakdo (Testing ke liye)
-        if actor.id == client.me.id:
+        # 1. SAFETY: Bot aur Owner ko ignore karo
+        if actor.id == client.me.id or actor.id == OWNER_ID:
+            return
+
+        # 2. Whitelist Check (Database)
+        # Agar aap chahte ho ki trusted admins bhi safe rahein
+        if await db.is_user_whitelisted(chat.id, actor.id):
             return
 
         # ACTION DETECTION
         old = update.old_chat_member.status if update.old_chat_member else ChatMemberStatus.LEFT
         new = update.new_chat_member.status if update.new_chat_member else ChatMemberStatus.LEFT
 
-        # KICK/BAN Check
+        action_detected = False
+
+        # Case A: Kick/Ban
         if new in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED]:
-            
-            # Agar Actor ne khud leave nahi kiya (Kisi ne nikala hai)
             if actor.id != target.id:
-                
-                # --- TRAFFIC CHECK ---
-                current_time = time.time()
-                
-                if chat.id not in TRAFFIC:
-                    TRAFFIC[chat.id] = {}
-                if actor.id not in TRAFFIC[chat.id]:
-                    TRAFFIC[chat.id][actor.id] = []
-                
-                TRAFFIC[chat.id][actor.id].append(current_time)
-                
-                # 60 sec purane actions hatao
-                TRAFFIC[chat.id][actor.id] = [t for t in TRAFFIC[chat.id][actor.id] if current_time - t < TIME_FRAME]
-                
-                count = len(TRAFFIC[chat.id][actor.id])
-                
-                # 📢 DEBUG: Ye line confirm karegi ki code chal raha hai
-                print(f"DEBUG: {actor.first_name} Kicked Someone. Count: {count}/{LIMIT}")
-                
-                # LIMIT CROSS
-                if count >= LIMIT:
-                    await client.send_message(chat.id, f"🚨 **NUKE DETECTED!** {actor.first_name} crossed limit!")
-                    await demote_admin(client, chat.id, actor.id, actor.first_name)
-                    TRAFFIC[chat.id][actor.id] = [] # Reset
+                action_detected = True
+
+        # Case B: Mass Promotion (Optional: Agar chaho to enable karo)
+        elif old not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and \
+             new in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+             action_detected = True
+
+        # 3. TRAFFIC CHECK
+        if action_detected:
+            current_time = time.time()
+            
+            if chat.id not in TRAFFIC:
+                TRAFFIC[chat.id] = {}
+            if actor.id not in TRAFFIC[chat.id]:
+                TRAFFIC[chat.id][actor.id] = []
+            
+            TRAFFIC[chat.id][actor.id].append(current_time)
+            
+            # Clean old actions
+            TRAFFIC[chat.id][actor.id] = [t for t in TRAFFIC[chat.id][actor.id] if current_time - t < TIME_FRAME]
+            
+            count = len(TRAFFIC[chat.id][actor.id])
+            
+            if count >= LIMIT:
+                await punish_nuker(client, chat.id, actor, count)
+                TRAFFIC[chat.id][actor.id] = [] # Reset after punishment
