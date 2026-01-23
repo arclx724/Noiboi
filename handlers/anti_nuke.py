@@ -2,92 +2,115 @@ import time
 from pyrogram import Client, filters
 from pyrogram.types import ChatMemberUpdated, ChatPrivileges
 from pyrogram.enums import ChatMemberStatus
+from config import OWNER_ID
 
 # ================= CONFIGURATION =================
-# Testing Limit: Sirf 3 kicks par action lega
-LIMIT = 3
-TIME_FRAME = 60 # 60 Seconds
+# Testing ke liye Limit = 1 rakho taaki turant pakde
+LIMIT = 1 
+TIME_FRAME = 60 
 
-# Temporary Memory (RAM)
+# RAM Cache
 TRAFFIC = {}
 
 async def demote_admin(client, chat_id, user_id, user_name):
-    """Admin ko demote karne ka function"""
+    """Admin ko demote karne ki koshish karega aur result batayega"""
     try:
-        await client.send_message(chat_id, f"⚡ **ATTEMPTING TO DEMOTE:** {user_name}")
+        await client.send_message(chat_id, f"⚡ **ATTEMPTING TO DEMOTE:** {user_name}...")
         
-        # Demote Logic
+        # Demote Logic (Sab rights FALSE kar do)
         await client.promote_chat_member(
             chat_id,
             user_id,
-            privileges=ChatPrivileges(can_manage_chat=False) # Sab Rights False
+            privileges=ChatPrivileges(
+                can_manage_chat=False,
+                can_delete_messages=False,
+                can_manage_video_chats=False,
+                can_restrict_members=False,
+                can_promote_members=False,
+                can_change_info=False,
+                can_invite_users=False,
+                can_pin_messages=False,
+                can_post_messages=False,
+                can_edit_messages=False,
+                is_anonymous=False
+            )
         )
-        await client.send_message(chat_id, f"✅ **SUCCESS:** {user_name} has been Demoted!")
+        await client.send_message(chat_id, f"✅ **SUCCESS:** {user_name} ko Demote kar diya!")
+        return True
         
     except Exception as e:
-        await client.send_message(chat_id, f"❌ **FAIL:** Demote nahi kar paya!\nError: `{e}`")
+        error_msg = str(e)
+        reason = "Unknown Error"
+        
+        if "USER_ADMIN_INVALID" in error_msg:
+            reason = "⚠️ **HIERARCHY ERROR:** Main is Admin ko remove nahi kar sakta kyunki isse **Owner** ya **Mujhse Bade Admin** ne banaya hai.\n\n👉 **Solution:** Is Admin ko Bot ke through promote karo."
+        elif "RIGHTS_NOT_ENOUGH" in error_msg:
+            reason = "⚠️ **PERMISSION ERROR:** Mere paas 'Add New Admins' ki permission nahi hai."
+            
+        await client.send_message(chat_id, f"❌ **FAILED:** Demote nahi hua!\n**Reason:** {reason}\n**Technical:** `{error_msg}`")
+        return False
 
 def register_anti_nuke(app: Client):
 
+    # --- 🛠 TEST COMMAND (Isse Power Check Karo) ---
+    @app.on_message(filters.command("trydemote") & filters.group)
+    async def test_demote(client, message):
+        # Sirf Owner use kare
+        # if message.from_user.id != OWNER_ID:
+        #    return await message.reply("Sirf Owner ye check kar sakta hai.")
+
+        if not message.reply_to_message:
+            return await message.reply("❌ Kisi Admin ke message par reply karke `/trydemote` likho.")
+            
+        target = message.reply_to_message.from_user
+        await demote_admin(client, message.chat.id, target.id, target.first_name)
+
+
+    # --- 🛡️ MAIN WATCHER ---
     @app.on_chat_member_updated(filters.group)
     async def debug_nuke_watcher(client, update: ChatMemberUpdated):
-        """
-        Ye function har member update par chalega aur check karega.
-        """
         chat = update.chat
         
-        # 1. Actor Check (Jisne action liya)
         if not update.from_user:
             return
         actor = update.from_user
         target = update.new_chat_member.user
 
-        # 2. Ignore Bot Itself
+        # Ignore Bot
         if actor.id == client.me.id:
             return
 
-        # 3. KICK DETECTION LOGIC
-        # Purana Status kya tha?
-        old_status = update.old_chat_member.status if update.old_chat_member else ChatMemberStatus.LEFT
-        # Naya Status kya hai?
-        new_status = update.new_chat_member.status if update.new_chat_member else ChatMemberStatus.LEFT
+        # ACTION DETECTION (Kick/Ban)
+        old = update.old_chat_member.status if update.old_chat_member else ChatMemberStatus.LEFT
+        new = update.new_chat_member.status if update.new_chat_member else ChatMemberStatus.LEFT
 
-        # Agar banda group se gaya hai (LEFT ya BANNED)
-        if new_status in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED]:
+        # Agar Kick/Ban hua hai
+        if new in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED]:
             
-            # Agar Actor aur Target alag hain -> Matlab Kick/Ban hua hai
+            # Agar Actor ne khud leave nahi kiya (Kisi ne nikala hai)
             if actor.id != target.id:
                 
                 # --- VELOCITY CHECK (RAM) ---
                 current_time = time.time()
                 
-                # Data structure initialize karo
                 if chat.id not in TRAFFIC:
                     TRAFFIC[chat.id] = {}
                 if actor.id not in TRAFFIC[chat.id]:
                     TRAFFIC[chat.id][actor.id] = []
                 
-                # Naya kick time add karo
+                # Action count karo
                 TRAFFIC[chat.id][actor.id].append(current_time)
                 
-                # Purane actions (jo 60 sec se pehle the) hata do
+                # Purana data saaf karo (60 sec window)
                 TRAFFIC[chat.id][actor.id] = [t for t in TRAFFIC[chat.id][actor.id] if current_time - t < TIME_FRAME]
                 
                 count = len(TRAFFIC[chat.id][actor.id])
                 
-                # 📢 DEBUG MESSAGE (Group mein dikhega)
-                # await client.send_message(
-                #     chat.id, 
-                #     f"👀 **Monitor:** {actor.first_name} removed {target.first_name}.\n"
-                #     f"🔢 Count: {count}/{LIMIT}"
-                # )
-                
-                print(f"DEBUG: {actor.first_name} did action {count}/{LIMIT}")
+                # 📢 DEBUG: Har Kick par message aayega
+                await client.send_message(chat.id, f"👀 **Monitor:** {actor.first_name} removed a member. (Count: {count}/{LIMIT})")
 
-                # ACTION TIME
+                # LIMIT CROSS
                 if count >= LIMIT:
-                    await client.send_message(chat.id, f"🚨 **LIMIT CROSS!** {actor.first_name} is nuking!")
+                    await client.send_message(chat.id, f"🚨 **LIMIT REACHED!** Nuke detected by {actor.first_name}")
                     await demote_admin(client, chat.id, actor.id, actor.first_name)
-                    # Reset count
-                    TRAFFIC[chat.id][actor.id] = []
-
+                    TRAFFIC[chat.id][actor.id] = [] # Reset
