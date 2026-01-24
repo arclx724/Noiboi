@@ -47,7 +47,7 @@ Highlights:
             ],
             [
                 InlineKeyboardButton("※ ŎŴɳēŔ ※", url=f"tg://user?id={OWNER_ID}"),
-                InlineKeyboardButton("Repo", url="https://github.com/LearningBotsOfficial/Nomade"),
+                InlineKeyboardButton("Repo", url="https://t.me/RoboKaty"),
                 
             ],
             [InlineKeyboardButton("📚 Help Commands 📚", callback_data="help")]
