@@ -92,9 +92,6 @@ Choose a category below to explore commands:
                 InlineKeyboardButton("⌂ Moderation ⌂", callback_data="moderation")
             ],
             [
-                InlineKeyboardButton("⌂ Clean Service ⌂", callback_data="Clean-Service")
-            ],
-            [
                 InlineKeyboardButton("⌂ Anti-Cheater ⌂", callback_data="anti-cheater")
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
