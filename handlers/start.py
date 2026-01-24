@@ -187,7 +187,8 @@ Examples:
             [InlineKeyboardButton("🔙 Back", callback_data="help")]
         ])
         media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.message.edit_message_text(text=text, reply_markup=buttons)
+        #await callback_query.message.edit_media(media=media, reply_markup=buttons)
         await callback_query.answer()
 
     
