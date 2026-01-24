@@ -186,11 +186,23 @@ Examples:
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 Back", callback_data="help")]
         ])
-        # PHOTO REMOVED HERE
-        await callback_query.message.edit_text(text=text, reply_markup=buttons)
-        await callback_query.answer()
 
-    
+        try:
+            # Pehle purana photo wala message delete karein
+            await callback_query.message.delete()
+            
+            # Ab naya text message bhejein (Isme 4096 char limit milti hai)
+            await client.send_message(
+                chat_id=callback_query.message.chat.id,
+                text=text,
+                reply_markup=buttons
+            )
+        except Exception as e:
+            # Agar delete nahi ho paya toh purane tarike se edit try karein
+            await callback_query.edit_message_text(text=text, reply_markup=buttons)
+            
+        await callback_query.answer()
+        
 # ==========================================================
 # Locks callback_query
 # ==========================================================
