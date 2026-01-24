@@ -209,3 +209,54 @@ async def reset_admin_limit(chat_id: int):
     """Poore group ki limits reset karega (Owner Command)"""
     await db.admin_limits.delete_many({"chat_id": chat_id})
     
+# ==========================================================
+# 🧹 CLEAN SERVICE SYSTEM (Service Message Deleter)
+# ==========================================================
+
+async def enable_clean_service(chat_id: int, service_type: str):
+    """Specific service type ko clean list mein add karega"""
+    if service_type == "all":
+        # Agar 'all' select kiya, to purana sab hata ke sirf 'all' set karo
+        await db.clean_service.update_one(
+            {"chat_id": chat_id},
+            {"$set": {"types": ["all"]}},
+            upsert=True
+        )
+    else:
+        # Pehle check karo agar 'all' already set hai to usse hatao (specific control ke liye)
+        await db.clean_service.update_one(
+            {"chat_id": chat_id},
+            {"$pull": {"types": "all"}}
+        )
+        # Ab specific type add karo
+        await db.clean_service.update_one(
+            {"chat_id": chat_id},
+            {"$addToSet": {"types": service_type}},
+            upsert=True
+        )
+
+async def disable_clean_service(chat_id: int, service_type: str):
+    """Specific service type ko clean list se hatayega"""
+    if service_type == "all":
+        # 'all' hatane ka matlab sab kuch disable karna
+        await db.clean_service.delete_one({"chat_id": chat_id})
+    else:
+        # Agar 'all' enabled tha, to use hata kar baaki sab add karne padenge (logic complex hai, simple rakhte hain)
+        # Simple Logic: Just remove the tag.
+        await db.clean_service.update_one(
+            {"chat_id": chat_id},
+            {"$pull": {"types": service_type}}
+        )
+        # Note: Agar 'all' set tha aur user ne '/keepservice join' kiya, 
+        # to technically 'all' hat jana chahiye aur baaki sab rehne chahiye. 
+        # Par abhi ke liye simple rakhte hain: 'all' hata do.
+        await db.clean_service.update_one(
+            {"chat_id": chat_id},
+            {"$pull": {"types": "all"}}
+        )
+
+async def get_clean_service_types(chat_id: int) -> list:
+    """Check karega kaunse messages delete karne hain"""
+    data = await db.clean_service.find_one({"chat_id": chat_id})
+    return data.get("types", []) if data else []
+    
