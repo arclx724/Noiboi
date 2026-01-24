@@ -91,6 +91,9 @@ Choose a category below to explore commands:
                 InlineKeyboardButton("⌂ Moderation ⌂", callback_data="moderation")
             ],
             [
+                InlineKeyboardButton("⌂ Clean Service ⌂", callback_data="Clean-Service")
+            ],
+            [
                 InlineKeyboardButton("⌂ Anti-Cheater ⌂", callback_data="anti-cheater")
             ],
             [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
@@ -223,8 +226,57 @@ Reply to a user or type
             print(f"Error in info_callback: {e}")
             await callback_query.answer("❌ Something went wrong.", show_alert=True)
 
-    # ==========================================================
-# Moderation Callback_query
+
+# ==========================================================
+# Clean-Service Callback_query
+# ==========================================================
+    @app.on_callback_query(filters.regex("Clean-Service"))
+    async def info_callback(client, callback_query):
+        try:
+            text = """
+Clean Service
+
+Clean up automated telegram service messages! The available categories are:
+- all: All service messages.
+- join: When a new user joins, or is added. eg: 'X joined the chat'
+- leave: When a user leaves, or is removed. eg: 'X left the chat'
+- other: Miscellaneous items; such as chat boosts, successful telegram payments, proximity alerts, webapp messages, message auto deletion changes, or checklist updates.
+- photo: When chat photos or chat backgrounds are changed.
+- pin: When a new message is pinned. eg: 'X pinned a message'
+- title: When chat or topic titles are changed.
+- videochat: When a video chat action occurs - eg starting, ending, scheduling, or adding members to the call.
+
+Admin commands:
+- /cleanservice <type/yes/no/on/off>: Select which service messages to delete.
+- /keepservice <type>: Select which service messages to stop deleting.
+- /nocleanservice <type>: (same as keepservice)
+- /cleanservicetypes: List all the available service messages, with a brief explanation.
+
+Examples:
+- Stop all telegram service messages:
+-> /cleanservice all
+
+- Stop telegrams 'x joined the chat' messages:
+-> /cleanservice join
+
+- Keep telegrams 'x pinned a message' messages:
+-> /keepservice pin</code>
+
+"""
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back", callback_data="help")]
+            ])
+    
+            media = InputMediaPhoto(media=START_IMAGE, caption=text)
+            await callback_query.message.edit_media(media=media, reply_markup=buttons)
+            await callback_query.answer()
+    
+        except Exception as e:
+            print(f"Error in info_callback: {e}")
+            await callback_query.answer("❌ Something went wrong.", show_alert=True)
+    
+# ==========================================================
+# Anti-Cheater Callback_query
 # ==========================================================
     @app.on_callback_query(filters.regex("anti-cheater"))
     async def info_callback(client, callback_query):
