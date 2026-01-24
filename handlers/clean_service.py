@@ -40,8 +40,18 @@ def register_clean_service_handlers(app: Client):
         
         action_type = message.command[1].lower()
         
-        # Aliases Handle (On/Off)
-        if action_type in ["on", "yes", "enable"]: action_type = "all"
+        # --- 🛠️ CHANGE HERE: ON Logic ---
+        if action_type in ["on", "enable"]:
+            # Sirf message bhejenge, kuch set nahi karenge (Standby Mode)
+            return await message.reply_text(
+                "✅ **Clean Service is ON (Standby).**\n\n"
+                "Abhi maine kuch delete karna shuru nahi kiya hai.\n"
+                "Delete shuru karne ke liye type batayein:\n"
+                "👉 `/cleanservice join` (Sirf joins ke liye)\n"
+                "👉 `/cleanservice all` (Sab kuch udane ke liye)"
+            )
+
+        # OFF Logic
         if action_type in ["off", "no", "disable"]: 
             await db.disable_clean_service(message.chat.id, "all")
             return await message.reply_text("✅ Clean Service **Disabled**. Service messages will stay.")
@@ -61,9 +71,6 @@ def register_clean_service_handlers(app: Client):
     # --- 3. THE DELETER WATCHER ---
     @app.on_message(filters.service, group=1)
     async def service_deleter_watcher(client, message: Message):
-        """
-        Ye function har service message ko check karega aur DB settings ke hisaab se delete karega.
-        """
         chat_id = message.chat.id
         
         # Database se pucho kya delete karna hai
@@ -79,51 +86,17 @@ def register_clean_service_handlers(app: Client):
             should_delete = True
         else:
             # B. Check Specific Types
-            
-            # 1. Join (New Members)
-            if message.new_chat_members:
-                if "join" in active_types: should_delete = True
-            
-            # 2. Leave (Members Left/Removed)
-            elif message.left_chat_member:
-                if "leave" in active_types: should_delete = True
-            
-            # 3. Pin (Pinned Message)
-            elif message.pinned_message:
-                if "pin" in active_types: should_delete = True
-            
-            # 4. Photo (Chat Photo Changed/Deleted)
-            elif message.new_chat_photo or message.delete_chat_photo:
-                if "photo" in active_types: should_delete = True
-            
-            # 5. Title (Chat Title Changed)
-            elif message.new_chat_title:
-                if "title" in active_types: should_delete = True
-            
-            # 6. Video Chat (Voice Chat)
-            elif (message.video_chat_started or 
-                  message.video_chat_ended or 
-                  message.video_chat_members_invited or 
-                  message.video_chat_scheduled):
-                if "videochat" in active_types: should_delete = True
-            
-            # 7. Other (Misc)
+            if message.new_chat_members and "join" in active_types: should_delete = True
+            elif message.left_chat_member and "leave" in active_types: should_delete = True
+            elif message.pinned_message and "pin" in active_types: should_delete = True
+            elif (message.new_chat_photo or message.delete_chat_photo) and "photo" in active_types: should_delete = True
+            elif message.new_chat_title and "title" in active_types: should_delete = True
+            elif (message.video_chat_started or message.video_chat_ended or message.video_chat_members_invited or message.video_chat_scheduled) and "videochat" in active_types: should_delete = True
             elif "other" in active_types:
-                if (message.successful_payment or 
-                    message.proximity_alert_triggered or 
-                    message.message_auto_delete_timer_changed or 
-                    message.web_app_data or
-                    message.general_topic_hidden or 
-                    message.general_topic_unhidden or 
-                    message.forum_topic_created or 
-                    message.forum_topic_edited or 
-                    message.forum_topic_closed or 
-                    message.forum_topic_reopened):
+                if (message.successful_payment or message.proximity_alert_triggered or message.message_auto_delete_timer_changed or message.web_app_data or message.general_topic_hidden or message.general_topic_unhidden or message.forum_topic_created or message.forum_topic_edited or message.forum_topic_closed or message.forum_topic_reopened):
                     should_delete = True
 
-        # Final Action
         if should_delete:
-            try:
-                await message.delete()
-            except Exception:
-                pass # Permission error ya already deleted
+            try: await message.delete()
+            except: pass
+                
