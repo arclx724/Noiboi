@@ -19,4 +19,4 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "NomadeHelpBot")
 # Links and visuals
 SUPPORT_GROUP = os.getenv("SUPPORT_GROUP", "https://t.me/RoboKaty")
 UPDATE_CHANNEL = os.getenv("UPDATE_CHANNEL", "https://t.me/RoboKaty")
-START_IMAGE = os.getenv("START_IMAGE", "https://files.catbox.moe/j2yhce.jpg")
+START_IMAGE = os.getenv("START_IMAGE", "https://files.catbox.moe/86yrex.jpg")
