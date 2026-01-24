@@ -153,7 +153,7 @@ Example:
 # Clean Service Callback_query
 # ==========================================================
     @app.on_callback_query(filters.regex("Clean-Service"))
-    async def greetings_callback(client, callback_query):
+    async def clean_service_callback(client, callback_query):
         text = """
 **Clean Service**
 
@@ -186,9 +186,8 @@ Examples:
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 Back", callback_data="help")]
         ])
-        media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_message_text(text=text, reply_markup=buttons)
-        #await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        # PHOTO REMOVED HERE
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     
