@@ -286,3 +286,23 @@ async def get_media_delete_config(chat_id: int):
     if not data:
         return False, 0
     return data.get("enabled", False), data.get("time", 60) # Default 60s
+
+# ==========================================================
+# 🤖 ANTI-BOT SYSTEM (No External Bots)
+# ==========================================================
+
+async def set_antibot_status(chat_id: int, status: bool):
+    """Enable or Disable Anti-Bot"""
+    await db.antibot.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"enabled": status}},
+        upsert=True
+    )
+
+async def is_antibot_enabled(chat_id: int) -> bool:
+    """Check status"""
+    data = await db.antibot.find_one({"chat_id": chat_id})
+    return data.get("enabled", False) if data else False
+
+
+
