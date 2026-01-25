@@ -9,16 +9,36 @@ import db
 
 # Abusive Words List
 ABUSIVE_WORDS = [
-    "madarchod", "Madharchod", "Madharchood", "behenchod", "madherchood", "madherchod", "bhenchod", "maderchod", "mc", "bc", "bsdk", 
-    "bhosdike", "bhosdiwala", "chutiya", "chutiyapa", "gandu", "gand", 
-    "lodu", "lode", "lauda", "lund", "lawda", "lavda", "aand", "jhant", 
-    "jhaant", "chut", "chuchi", "tatte", "tatti", "gaand", "gaandmar", 
-    "gaandmasti", "gaandfat", "gaandmara", "kamina", "kamine", "harami", 
-    "haraami", "nalayak", "nikamma", "kutte", "kutta", "kutti", "saala", 
-    "saali", "bhadwa", "bhadwe", "randi", "randibaaz", "bkl", "l*da", 
-    "l@da", "ch*tiya", "g@ndu", "behench*d", "bhench0d", "madarxhod", 
-    "chutya", "chuteya", "rand", "ramdi", "choot", "bhosda", "fuck", 
-    "bitch", "bastard", "asshole", "motherfucker", "dick", "tmkc", "mkc"
+    "aand", "aad", "asshole", "b.c.", "b.s.d.k", "babbe", "babbey", "bahenchod", 
+    "bakchod", "bakchodi", "bakchodd", "bastard", "bc", "behench*d", "behenchod", 
+    "bevkuf", "bevakoof", "bevda", "bevdey", "bevkoof", "bewakoof", "bewday", 
+    "bewkoof", "bewkuf", "bhadua", "bhaduaa", "bhadva", "bhadvaa", "bhadwa", 
+    "bhadwaa", "bhadwe", "bhench0d", "bhenchod", "bhenchodd", "bhosada", "bhosda", 
+    "bhosdaa", "bhosadchod", "bhosadchodal", "bhosdike", "bhosdiki", "bhosdiwala", 
+    "bhosdiwale", "bhonsdike", "bitch", "bkl", "bsdk", "bube", "bubey", "bur", 
+    "burr", "buur", "buurr", "ch*tiya", "charsi", "chhod", "chod", "chodd", 
+    "chooche", "choochi", "choot", "chudne", "chudney", "chudwa", "chudwaa", 
+    "chudwaane", "chudwane", "chuchi", "chut", "chutad", "chute", "chuteya", 
+    "chutia", "chutiya", "chutiyapa", "chutiye", "chuttad", "chutya", "dalaal", 
+    "dalal", "dalle", "dalley", "dick", "fattu", "fuck", "g@ndu", "gaand", 
+    "gaandfat", "gaandmar", "gaandmara", "gaandmasti", "gadha", "gadhe", 
+    "gadhalund", "gand", "gandfat", "gandfut", "gandiya", "gandiye", "gandu", 
+    "goo", "gote", "gotey", "gotte", "gu", "hag", "haggu", "hagne", "hagney", 
+    "haraami", "haraamjaada", "haraamjaade", "haraamkhor", "haraamzaade", 
+    "haraamzyaada", "harami", "haramjada", "haramkhor", "haramzyada", "jhaant", 
+    "jhaat", "jhaatu", "jhat", "jhatu", "kamina", "kamine", "kutta", "kutte", 
+    "kuttey", "kutti", "kuttia", "kutiya", "kuttiya", "l*da", "l@da", "lauda", 
+    "laude", "laudey", "laura", "lavda", "lawda", "ling", "loda", "lode", 
+    "lodu", "lora", "launda", "lounde", "loundey", "laundi", "laundiya", 
+    "lulli", "lund", "m.c.", "maar", "madarchod", "madarchodd", "madarchood", 
+    "madarchoot", "madarchut", "madarxhod", "maderchod", "madherchod", 
+    "madherchood", "Madharchod", "Madharchood", "mamme", "mammey", "maro", 
+    "marunga", "mc", "mkc", "moot", "mootne", "mooth", "motherfucker", "mut", 
+    "mutne", "muth", "nalayak", "nikamma", "nunni", "nunnu", "paaji", "paji", 
+    "pesaab", "pesab", "peshaab", "peshab", "pilla", "pillay", "pille", 
+    "pilley", "pisaab", "pisab", "pkmkb", "porkistan", "raand", "rand", 
+    "randi", "randibaaz", "randy", "ramdi", "saala", "saali", "suar", 
+    "tatte", "tatti", "tatty", "tmkc", "ullu"
 ]
 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
