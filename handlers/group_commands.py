@@ -438,7 +438,7 @@ def register_group_commands(app: Client):
                 can_manage_video_chats=True,
                 can_restrict_members=True,
                 can_promote_members=False,  
-                can_change_info=True,
+                can_change_info=False,
                 can_invite_users=True,
                 can_pin_messages=True,
                 can_post_messages=False, 
