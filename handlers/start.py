@@ -25,7 +25,7 @@ def register_handlers(app: Client):
     async def send_start_menu(message, user):
         text = f"""
 
-   ✨ Hello {user_obj.mention}! ✨
+   ✨ Hello {user.mention}! ✨
 
 👋 I am Mini Aadi 
 
