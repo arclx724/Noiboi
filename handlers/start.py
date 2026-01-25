@@ -65,10 +65,13 @@ Highlights:
 # Start Command
 # ==========================================================
     @app.on_message(filters.private & filters.command("start"))
-    async def start_command(client, message):
-        user = message.from_user
-        await db.add_user(user.id, user.first_name)
-        await send_start_menu(message, user.first_name)
+async def start_command(client, message):
+    user = message.from_user
+    await db.add_user(user.id, user.first_name)
+    
+    # ❌ Galat: await send_start_menu(message, user.first_name)
+    # ✅ Sahi: Pura 'user' object bhejein
+    await send_start_menu(message, user) 
 
 # ==========================================================
 # Help Menu Message
