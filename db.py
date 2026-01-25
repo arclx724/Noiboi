@@ -260,3 +260,29 @@ async def get_clean_service_types(chat_id: int) -> list:
     data = await db.clean_service.find_one({"chat_id": chat_id})
     return data.get("types", []) if data else []
     
+# ==========================================================
+# ⏳ MEDIA AUTO-DELETE SYSTEM
+# ==========================================================
+
+async def set_media_delete_config(chat_id: int, seconds: int):
+    """Time set karega aur feature ON karega"""
+    await db.media_delete.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"time": seconds, "enabled": True}},
+        upsert=True
+    )
+
+async def set_media_delete_status(chat_id: int, status: bool):
+    """Sirf ON/OFF karega"""
+    await db.media_delete.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"enabled": status}},
+        upsert=True
+    )
+
+async def get_media_delete_config(chat_id: int):
+    """Config wapas dega: (enabled, time)"""
+    data = await db.media_delete.find_one({"chat_id": chat_id})
+    if not data:
+        return False, 0
+    return data.get("enabled", False), data.get("time", 60) # Default 60s
