@@ -170,6 +170,27 @@ Types: url, sticker, media, username, etc.
         await callback_query.answer()
 
 # ==========================================================
+# MEDIA-GUARDIAN
+# ==========================================================
+    @app.on_callback_query(filters.regex("Media-Guardian"))
+    async def locks_callback(client, callback_query):
+        text = """
+**Set auto-delete delay media using:**
+
+   /setdelay on/off
+
+    /setdelay <value> [s/m/h]
+   Examples:
+    /setdelay 10 s → 10 seconds
+    /setdelay 5 m  → 5 minutes
+    /setdelay 1 h  → 1 hour (max 24h)
+"""
+        buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
+        media = InputMediaPhoto(media=START_IMAGE, caption=text)
+        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.answer()
+
+# ==========================================================
 # MODERATION
 # ==========================================================
     @app.on_callback_query(filters.regex("moderation"))
