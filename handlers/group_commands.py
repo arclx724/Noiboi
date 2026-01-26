@@ -117,7 +117,7 @@ def register_group_commands(app: Client):
 #  lock system
 # ==========================================================
 
-    @app.on_message(filters.group & filters.command("lock"))
+    @app.on_message(filters.group & filters.command("lock", "no"))
     async def lock_command(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
@@ -138,7 +138,7 @@ def register_group_commands(app: Client):
 # ==========================================================
 # unlock
 # ==========================================================
-    @app.on_message(filters.group & filters.command("unlock"))
+    @app.on_message(filters.group & filters.command("unlock", "no"))
     async def unlock_command(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
