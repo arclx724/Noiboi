@@ -515,3 +515,24 @@ def register_group_commands(app: Client):
             else:
                 await message.reply_text(f"⚠️ Failed to demote: {e}")
     
+    # --- Anti-Edit Command ---
+    @app.on_message(filters.command("antiedit") & filters.group)
+    async def antiedit_handler(client, message):
+        # Sirf Admin settings change kar sakta hai
+        member = await client.get_chat_member(message.chat.id, message.from_user.id)
+        if not (member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]):
+            return
+
+        if len(message.command) > 1:
+            arg = message.command[1].lower()
+            if arg == "on":
+                await db.set_antiedit_status(message.chat.id, True)
+                await message.reply_text("✏️ **Anti-Edit System Enabled!**\nNow edited messages will be deleted after 60s.")
+            elif arg == "off":
+                await db.set_antiedit_status(message.chat.id, False)
+                await message.reply_text("✏️ **Anti-Edit System Disabled!**")
+            else:
+                await message.reply_text("Usage: `/antiedit on` or `/antiedit off`")
+        else:
+            await message.reply_text("Usage: `/antiedit on` or `/antiedit off`")
+            
