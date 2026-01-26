@@ -202,3 +202,18 @@ async def is_antibot_enabled(chat_id: int) -> bool:
     data = await db.antibot.find_one({"chat_id": chat_id})
     return data.get("enabled", False) if data else False
     
+# ==========================================================
+# ✏️ ANTI-EDIT SYSTEM
+# ==========================================================
+
+async def set_antiedit_status(chat_id: int, status: bool):
+    await db.antiedit.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"enabled": status}},
+        upsert=True
+    )
+
+async def is_antiedit_enabled(chat_id: int) -> bool:
+    data = await db.antiedit.find_one({"chat_id": chat_id})
+    return data.get("enabled", False) if data else False
+    
