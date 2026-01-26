@@ -10,9 +10,9 @@ import db
 def register_handlers(app: Client):
 
     # ==========================================================
-    # 1. SEND START MENU (Main Function)
+    # 1. SEND START MENU (Helper Function)
     # ==========================================================
-    async def send_start_menu(message, user):
+    async def send_start_menu(message, user, is_edit=False):
         text = f"""
 ✨ **Hey there {user.mention}!** ✨
 
@@ -40,16 +40,15 @@ My name is **MissKaty** 🤖. I have many useful features for you, feel free to 
             [InlineKeyboardButton("Commands ❓", callback_data="help")]
         ])
 
-        if message.text:
-            await message.reply_photo(START_IMAGE, caption=text, reply_markup=buttons)
+        if is_edit:
+            await message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         else:
-            media = InputMediaPhoto(media=START_IMAGE, caption=text)
-            await message.edit_media(media=media, reply_markup=buttons)
+            await message.reply_photo(START_IMAGE, caption=text, reply_markup=buttons)
 
     # ==========================================================
-    # 2. HELP MENU
+    # 2. SEND HELP MENU (Helper Function)
     # ==========================================================
-    async def send_help_menu(message):
+    async def send_help_menu(message, is_edit=False):
         text = """
 ╔══════════════════╗
      **Help Menu** 📚
@@ -73,119 +72,92 @@ Choose a category below to explore commands:
             [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
         ])
 
-        if message.text: # Agar text message hai to photo ke sath reply karo
-             await message.reply_photo(START_IMAGE, caption=text, reply_markup=buttons)
-        else: # Agar callback hai to edit karo
-             media = InputMediaPhoto(media=START_IMAGE, caption=text)
-             await message.edit_media(media=media, reply_markup=buttons)
+        if is_edit:
+            await message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        else:
+            await message.reply_photo(START_IMAGE, caption=text, reply_markup=buttons)
 
     # ==========================================================
-    # 3. START COMMAND (MODIFIED FOR DEEP LINKING) 🆕
+    # 3. START COMMAND (Logic Here)
     # ==========================================================
     @app.on_message(filters.private & filters.command("start"))
     async def start_command(client, message):
         user = message.from_user
         await db.add_user(user.id, user.first_name)
         
-        # --- DEEP LINK CHECK ---
-        # Agar user ne link par click kiya (e.g., t.me/bot?start=help)
-        if len(message.command) > 1:
-            argument = message.command[1]
-            if argument == "help":
-                await send_help_menu(message)
-                return # Yahi ruk jao, Start menu mat bhejo
-        
-        # Agar normal start hai
-        await send_start_menu(message, user)
+        # --- DEEP LINK LOGIC ---
+        if len(message.command) > 1 and message.command[1] == "help":
+            await send_help_menu(message, is_edit=False)
+            return
+
+        # --- NORMAL START ---
+        await send_start_menu(message, user, is_edit=False)
 
     # ==========================================================
-    # 4. CALLBACKS
+    # 4. GENERAL CALLBACKS (Help & Back)
     # ==========================================================
     @app.on_callback_query(filters.regex("help"))
     async def help_callback(client, callback_query):
-        await send_help_menu(callback_query.message)
+        await send_help_menu(callback_query.message, is_edit=True)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("back_to_start"))
     async def back_to_start_callback(client, callback_query):
         user = callback_query.from_user
-        await send_start_menu(callback_query.message, user)
+        await send_start_menu(callback_query.message, user, is_edit=True)
         await callback_query.answer()
 
-    # --- Other Categories ---
+    # ==========================================================
+    # 5. FEATURE CALLBACKS
+    # ==========================================================
     @app.on_callback_query(filters.regex("greetings"))
     async def greetings_callback(client, callback_query):
         text = "**⚙ Welcome System**\n\n- `/setwelcome <text>`\n- `/welcome on/off`"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("locks"))
     async def locks_callback(client, callback_query):
         text = "**⚙ Locks System**\n\n- `/lock <type>`\n- `/unlock <type>`\n- `/locks`"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("Media-Guardian"))
     async def media_callback(client, callback_query):
         text = "**⏳ Media Auto-Delete**\n\n- `/setdelay 10 s`\n- `/setdelay off`"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("No-Bots"))
     async def bots_callback(client, callback_query):
         text = "**🤖 No Bots System**\n\n- `/nobots on`\n- `/nobots off`"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("moderation"))
     async def moderation_callback(client, callback_query):
         text = "**👮‍♂️ Moderation**\n\n- `/kick`, `/ban`, `/mute`\n- `/promote`, `/demote`"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("Clean-Service"))
     async def clean_service_callback(client, callback_query):
         text = "**🧹 Clean Service**\n\n- `/cleanservice <type>`\n- `/keepservice <type>`"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("anti-cheater"))
     async def anti_cheater_callback(client, callback_query):
         text = "**🛡️ Anti-Cheater**\n\nAutomatically demotes admins who abuse power."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        media = InputMediaPhoto(media=START_IMAGE, caption=text)
-        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
-
-    # ==========================================================
-    # 5. NEW CHAT MEMBERS (Group Welcome)
-    # ==========================================================
-    @app.on_message(filters.new_chat_members)
-    async def welcome_bot(client, message):
-        for member in message.new_chat_members:
-            if member.id == client.me.id:
-                text = (
-                    f"🌟 ᴛʜᴀɴᴋꜱ ꜰᴏʀ ɢɪᴠɪɴɢ ᴍᴇ ᴀ ᴄʜᴀɴᴄᴇ ᴛᴏ ʜᴀɴᴅʟᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ **{message.chat.title}**! 🛡️\n\n"
-                    "🛡️ ɴᴏᴡ ɪ ᴄᴀɴ sᴀᴠᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ ꜰʀᴏᴍ sᴜsᴘᴇɴsɪᴏɴ ᴀɴᴅ ᴄᴏᴘʏʀɪɢʜᴛ sᴛʀɪᴋᴇ ʙʏ ᴅᴇʟᴇᴛɪɴɢ ᴛʜᴇ ᴇᴅɪᴛᴇᴅ ᴍᴇssᴀɢᴇ.\n"
-                    "🚀 ʟᴇᴛꜱ ᴍᴀᴋᴇ ᴛʜɪs ɢʀᴏᴜᴘ ᴀᴡᴇsᴏᴍᴇ ᴛᴏɢᴇᴛʜᴇʀ !!\n"
-                    "🔔 ɴᴇᴇᴅ ʜᴇʟᴘ ᴊᴜsᴛ ᴄʟɪᴄᴋ ʜᴇʀᴇ 👇!!"
-                )
-                buttons = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Commands ❓", url=f"https://t.me/{BOT_USERNAME}?start=help")]
-                ])
-                await message.reply_text(text, reply_markup=buttons)
 
     # ==========================================================
     # 6. OWNER COMMANDS
@@ -205,4 +177,25 @@ Choose a category below to explore commands:
         if message.from_user.id != OWNER_ID: return
         users = await db.get_all_users()
         await message.reply_text(f"💡 Total users: {len(users)}")
-        
+
+    # ==========================================================
+    # 7. NEW CHAT MEMBERS (Welcome Bot)
+    # ==========================================================
+    @app.on_message(filters.new_chat_members)
+    async def welcome_bot(client, message):
+        for member in message.new_chat_members:
+            if member.id == client.me.id:
+                text = (
+                    f"🌟 ᴛʜᴀɴᴋꜱ ꜰᴏʀ ɢɪᴠɪɴɢ ᴍᴇ ᴀ ᴄʜᴀɴᴄᴇ ᴛᴏ ʜᴀɴᴅʟᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ **{message.chat.title}**! 🛡️\n\n"
+                    "🛡️ ɴᴏᴡ ɪ ᴄᴀɴ sᴀᴠᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ ꜰʀᴏᴍ sᴜsᴘᴇɴsɪᴏɴ ᴀɴᴅ ᴄᴏᴘʏʀɪɢʜᴛ sᴛʀɪᴋᴇ ʙʏ ᴅᴇʟᴇᴛɪɴɢ ᴛʜᴇ ᴇᴅɪᴛᴇᴅ ᴍᴇssᴀɢᴇ.\n"
+                    "🚀 ʟᴇᴛꜱ ᴍᴀᴋᴇ ᴛʜɪs ɢʀᴏᴜᴘ ᴀᴡᴇsᴏᴍᴇ ᴛᴏɢᴇᴛʜᴇʀ !!\n"
+                    "🔔 ɴᴇᴇᴅ ʜᴇʟᴘ ᴊᴜsᴛ ᴄʟɪᴄᴋ ʜᴇʀᴇ 👇!!"
+                )
+                
+                # Using Deep Link URL here to avoid Group Button Errors
+                buttons = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Commands ❓", url=f"https://t.me/{BOT_USERNAME}?start=help")]
+                ])
+
+                await message.reply_text(text, reply_markup=buttons)
+                    
