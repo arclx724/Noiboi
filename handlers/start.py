@@ -24,7 +24,7 @@ def register_handlers(app: Client):
 
 My name is MissKaty ️. I have many useful features for you, feel free to add me to your group.
 
-*Highlights:*
+**Highlights:**
 ────────────────────────
 - Smart Anti-Spam & Link Shield
 - Adaptive Lock System (URLs, Media, Language & more)
