@@ -5,14 +5,15 @@
 import motor.motor_asyncio
 from config import MONGO_URI, DB_NAME
 import logging
-import time  # <--- Added for Anti-Nuke time calculation
+import time
 
-# setup logging
+# Setup Logging
 logging.basicConfig(
     level=logging.INFO,
     format='[%(levelname)s] %(asctime)s - %(message)s'
 )
 
+# Connect to MongoDB
 try:
     client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
     db = client[DB_NAME]
@@ -24,42 +25,42 @@ except Exception as e:
 # 🟢 WELCOME MESSAGE SYSTEM
 # ==========================================================
 
-async def set_welcome_message(chat_id, text: str):
+async def set_welcome_message(chat_id: int, text: str):
     await db.welcome.update_one(
         {"chat_id": chat_id},
         {"$set": {"message": text}},
         upsert=True
     )
 
-async def get_welcome_message(chat_id):
+async def get_welcome_message(chat_id: int):
     data = await db.welcome.find_one({"chat_id": chat_id})
     return data.get("message") if data else None
 
-async def set_welcome_status(chat_id, status: bool):
+async def set_welcome_status(chat_id: int, status: bool):
     await db.welcome.update_one(
         {"chat_id": chat_id},
         {"$set": {"enabled": status}},
         upsert=True
     )
 
-async def get_welcome_status(chat_id) -> bool:
+async def get_welcome_status(chat_id: int) -> bool:
     data = await db.welcome.find_one({"chat_id": chat_id})
-    if not data:  # default ON
-        return True
-    return bool(data.get("enabled", True))
+    if not data:
+        return True # Default is ON
+    return data.get("enabled", True)
 
 # ==========================================================
 # 🔒 LOCK SYSTEM
 # ==========================================================
 
-async def set_lock(chat_id, lock_type, status: bool):
+async def set_lock(chat_id: int, lock_type: str, status: bool):
     await db.locks.update_one(
         {"chat_id": chat_id},
         {"$set": {f"locks.{lock_type}": status}},
         upsert=True
     )
 
-async def get_locks(chat_id):
+async def get_locks(chat_id: int):
     data = await db.locks.find_one({"chat_id": chat_id})
     return data.get("locks", {}) if data else {}
 
@@ -83,28 +84,27 @@ async def get_warns(chat_id: int, user_id: int) -> int:
     return data.get("count", 0) if data else 0
 
 async def reset_warns(chat_id: int, user_id: int):
-    await db.warns.update_one(
-        {"chat_id": chat_id, "user_id": user_id},
-        {"$set": {"count": 0}},
-        upsert=True
-    )
+    await db.warns.delete_one({"chat_id": chat_id, "user_id": user_id})
 
 # ==========================================================
-# 🧹 CLEANUP UTILS (Optional)
+# 🧹 CLEANUP UTILS (Reset Group)
 # ==========================================================
 
 async def clear_group_data(chat_id: int):
+    """Group ka saara data delete karega"""
     await db.welcome.delete_one({"chat_id": chat_id})
     await db.locks.delete_one({"chat_id": chat_id})
     await db.warns.delete_many({"chat_id": chat_id})
     await db.abuse_settings.delete_one({"chat_id": chat_id})
     await db.auth_users.delete_many({"chat_id": chat_id})
-    await db.admin_limits.delete_many({"chat_id": chat_id}) # Added limits cleanup
+    await db.media_delete.delete_one({"chat_id": chat_id})
+    await db.antibot.delete_one({"chat_id": chat_id})
 
 # ==========================================================
-# 👤 USER SYSTEM (for broadcast)
+# 👤 USER SYSTEM (For Broadcast)
 # ==========================================================
-async def add_user(user_id, first_name):
+
+async def add_user(user_id: int, first_name: str):
     await db.users.update_one(
         {"user_id": user_id},
         {"$set": {"first_name": first_name}},
@@ -120,19 +120,8 @@ async def get_all_users():
     return users
 
 # ==========================================================
-# 🤬 ABUSE & AUTH SYSTEM
+# 🤬 AUTH & WHITELIST SYSTEM (For Anti-Nuke)
 # ==========================================================
-
-async def is_abuse_enabled(chat_id: int) -> bool:
-    data = await db.abuse_settings.find_one({"chat_id": chat_id})
-    return data.get("enabled", False) if data else False
-
-async def set_abuse_status(chat_id: int, enabled: bool):
-    await db.abuse_settings.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"enabled": enabled}},
-        upsert=True
-    )
 
 async def add_whitelist(chat_id: int, user_id: int):
     await db.auth_users.update_one(
@@ -149,7 +138,6 @@ async def is_user_whitelisted(chat_id: int, user_id: int) -> bool:
     return bool(data)
 
 async def get_whitelisted_users(chat_id: int):
-    # Returns a list of user_ids
     cursor = db.auth_users.find({"chat_id": chat_id})
     users = []
     async for doc in cursor:
@@ -160,112 +148,10 @@ async def remove_all_whitelist(chat_id: int):
     await db.auth_users.delete_many({"chat_id": chat_id})
 
 # ==========================================================
-# ☢️ ANTI-NUKE SYSTEM (NEW ADDED)
-# ==========================================================
-
-async def check_admin_limit(chat_id: int, user_id: int, limit: int = 10):
-    """
-    Check karega ki admin ne aaj limit cross ki hai ya nahi.
-    Returns: (Allowed: bool, Current_Count: int)
-    """
-    current_time = time.time()
-    
-    # Record find karo (Admin Limits Collection mein)
-    record = await db.admin_limits.find_one({"chat_id": chat_id, "user_id": user_id})
-    
-    if record:
-        # Reset Time Check (24 Hours = 86400 seconds)
-        if current_time > record.get('reset_time', 0):
-            # Limit Reset karo
-            await db.admin_limits.update_one(
-                {"_id": record['_id']},
-                {"$set": {"count": 1, "reset_time": current_time + 86400}}
-            )
-            return True, 1
-            
-        # Agar Time Valid hai, to Count check karo
-        elif record['count'] < limit:
-            # Count badhao
-            await db.admin_limits.update_one(
-                {"_id": record['_id']},
-                {"$inc": {"count": 1}}
-            )
-            return True, record['count'] + 1
-            
-        # Agar Limit Cross ho gayi
-        else:
-            return False, limit
-    else:
-        # Pehli baar entry (New Record)
-        await db.admin_limits.insert_one({
-            "chat_id": chat_id, 
-            "user_id": user_id, 
-            "count": 1, 
-            "reset_time": current_time + 86400
-        })
-        return True, 1
-
-async def reset_admin_limit(chat_id: int):
-    """Poore group ki limits reset karega (Owner Command)"""
-    await db.admin_limits.delete_many({"chat_id": chat_id})
-    
-# ==========================================================
-# 🧹 CLEAN SERVICE SYSTEM (Service Message Deleter)
-# ==========================================================
-
-async def enable_clean_service(chat_id: int, service_type: str):
-    """Specific service type ko clean list mein add karega"""
-    if service_type == "all":
-        # Agar 'all' select kiya, to purana sab hata ke sirf 'all' set karo
-        await db.clean_service.update_one(
-            {"chat_id": chat_id},
-            {"$set": {"types": ["all"]}},
-            upsert=True
-        )
-    else:
-        # Pehle check karo agar 'all' already set hai to usse hatao (specific control ke liye)
-        await db.clean_service.update_one(
-            {"chat_id": chat_id},
-            {"$pull": {"types": "all"}}
-        )
-        # Ab specific type add karo
-        await db.clean_service.update_one(
-            {"chat_id": chat_id},
-            {"$addToSet": {"types": service_type}},
-            upsert=True
-        )
-
-async def disable_clean_service(chat_id: int, service_type: str):
-    """Specific service type ko clean list se hatayega"""
-    if service_type == "all":
-        # 'all' hatane ka matlab sab kuch disable karna
-        await db.clean_service.delete_one({"chat_id": chat_id})
-    else:
-        # Agar 'all' enabled tha, to use hata kar baaki sab add karne padenge (logic complex hai, simple rakhte hain)
-        # Simple Logic: Just remove the tag.
-        await db.clean_service.update_one(
-            {"chat_id": chat_id},
-            {"$pull": {"types": service_type}}
-        )
-        # Note: Agar 'all' set tha aur user ne '/keepservice join' kiya, 
-        # to technically 'all' hat jana chahiye aur baaki sab rehne chahiye. 
-        # Par abhi ke liye simple rakhte hain: 'all' hata do.
-        await db.clean_service.update_one(
-            {"chat_id": chat_id},
-            {"$pull": {"types": "all"}}
-        )
-
-async def get_clean_service_types(chat_id: int) -> list:
-    """Check karega kaunse messages delete karne hain"""
-    data = await db.clean_service.find_one({"chat_id": chat_id})
-    return data.get("types", []) if data else []
-    
-# ==========================================================
 # ⏳ MEDIA AUTO-DELETE SYSTEM
 # ==========================================================
 
 async def set_media_delete_config(chat_id: int, seconds: int):
-    """Time set karega aur feature ON karega"""
     await db.media_delete.update_one(
         {"chat_id": chat_id},
         {"$set": {"time": seconds, "enabled": True}},
@@ -273,7 +159,6 @@ async def set_media_delete_config(chat_id: int, seconds: int):
     )
 
 async def set_media_delete_status(chat_id: int, status: bool):
-    """Sirf ON/OFF karega"""
     await db.media_delete.update_one(
         {"chat_id": chat_id},
         {"$set": {"enabled": status}},
@@ -281,18 +166,17 @@ async def set_media_delete_status(chat_id: int, status: bool):
     )
 
 async def get_media_delete_config(chat_id: int):
-    """Config wapas dega: (enabled, time)"""
+    """Returns: (enabled: bool, time: int)"""
     data = await db.media_delete.find_one({"chat_id": chat_id})
     if not data:
         return False, 0
-    return data.get("enabled", False), data.get("time", 60) # Default 60s
+    return data.get("enabled", False), data.get("time", 60)
 
 # ==========================================================
-# 🤖 ANTI-BOT SYSTEM (No External Bots)
+# 🤖 ANTI-BOT SYSTEM
 # ==========================================================
 
 async def set_antibot_status(chat_id: int, status: bool):
-    """Enable or Disable Anti-Bot"""
     await db.antibot.update_one(
         {"chat_id": chat_id},
         {"$set": {"enabled": status}},
@@ -300,9 +184,6 @@ async def set_antibot_status(chat_id: int, status: bool):
     )
 
 async def is_antibot_enabled(chat_id: int) -> bool:
-    """Check status"""
     data = await db.antibot.find_one({"chat_id": chat_id})
     return data.get("enabled", False) if data else False
-
-
-
+    
