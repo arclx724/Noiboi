@@ -269,23 +269,28 @@ Types: url, sticker, media, username, etc.
         users = await db.get_all_users()
         await message.reply_text(f"💡 Total users: {len(users)}")
     
-# ==========================================================
-# NEW CHAT MEMBERS (Jab Bot Group me add ho)
-# ==========================================================
+    # ==========================================================
+    # 5. NEW CHAT MEMBERS (Jab Bot Group me add ho)
+    # ==========================================================
     @app.on_message(filters.new_chat_members)
     async def welcome_bot(client, message):
         for member in message.new_chat_members:
             # Agar add hone wala member khud Bot hai
             if member.id == client.me.id:
-                await message.reply_text(
+                
+                # Message Text (Formatting fixed)
+                text = (
                     f"🌟 ᴛʜᴀɴᴋꜱ ꜰᴏʀ ɢɪᴠɪɴɢ ᴍᴇ ᴀ ᴄʜᴀɴᴄᴇ ᴛᴏ ʜᴀɴᴅʟᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ **{message.chat.title}**! 🛡️\n\n"
-                    "🛡️ ɴᴏᴡ ɪ ᴄᴀɴ sᴀᴠᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ ꜰʀᴏᴍ sᴜsᴘᴇɴsɪᴏɴ ᴀɴᴅ ᴄᴏᴘʏʀɪɢʜᴛ sᴛʀɪᴋᴇ ʙʏ ᴅᴇʟᴇᴛɪɴɢ ᴛʜᴇ ᴇᴅɪᴛᴇᴅ ᴍᴇssᴀɢᴇ.
-                    🚀 ʟᴇᴛꜱ ᴍᴀᴋᴇ ᴛʜɪs ɢʀᴏᴜᴘ ᴀᴡᴇsᴏᴍᴇ ᴛᴏɢᴇᴛʜᴇʀ !!
-                    🔔 ɴᴇᴇᴅ ʜᴇʟᴘ ᴊᴜsᴛ ᴄʟɪᴄᴋ ʜᴇʀᴇ 👇!!.")
-# Button (Wahi same logic)
+                    "🛡️ ɴᴏᴡ ɪ ᴄᴀɴ sᴀᴠᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ ꜰʀᴏᴍ sᴜsᴘᴇɴsɪᴏɴ ᴀɴᴅ ᴄᴏᴘʏʀɪɢʜᴛ sᴛʀɪᴋᴇ ʙʏ ᴅᴇʟᴇᴛɪɴɢ ᴛʜᴇ ᴇᴅɪᴛᴇᴅ ᴍᴇssᴀɢᴇ.\n"
+                    "🚀 ʟᴇᴛꜱ ᴍᴀᴋᴇ ᴛʜɪs ɢʀᴏᴜᴘ ᴀᴡᴇsᴏᴍᴇ ᴛᴏɢᴇᴛʜᴇʀ !!\n"
+                    "🔔 ɴᴇᴇᴅ ʜᴇʟᴘ ᴊᴜsᴛ ᴄʟɪᴄᴋ ʜᴇʀᴇ 👇!!"
+                )
+
+                # Button (Wahi same logic)
                 buttons = InlineKeyboardMarkup([
                     [InlineKeyboardButton("Commands ❓", callback_data="help")]
                 ])
 
                 # Message Bhejo Button ke saath
                 await message.reply_text(text, reply_markup=buttons)
+                
