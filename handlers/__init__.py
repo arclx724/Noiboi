@@ -20,4 +20,3 @@ def register_all_handlers(app):
     register_cleaner_handlers(app)  # <--- NEW CALL
     
     print("✅ All Handlers Loaded: Start, Group, Abuse, Nuke, Media, Anti-Bot, Edit, Cleaner")
-l
