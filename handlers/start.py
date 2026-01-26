@@ -35,15 +35,22 @@ Highlights:
 """
 
         buttons = InlineKeyboardMarkup([
+            # --- Add to Group Button ---
             [InlineKeyboardButton("⚒️ Add to Group ⚒️", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
+            
+            # --- Support & Updates ---
             [
                 InlineKeyboardButton("⌂ Support ⌂", url=SUPPORT_GROUP),
                 InlineKeyboardButton("⌂ Update ⌂", url=UPDATE_CHANNEL),
             ],
+            
+            # --- Owner & Repo ---
             [
                 InlineKeyboardButton("※ ŎŴɳēŔ ※", url=f"tg://user?id={OWNER_ID}"),
                 InlineKeyboardButton("Repo", url="https://t.me/RoboKaty"),
             ],
+            
+            # --- Help Command ---
             [InlineKeyboardButton("📚 Help Commands 📚", callback_data="help")]
         ])
 
@@ -75,18 +82,27 @@ Highlights:
 Choose a category below to explore commands:
 ─────────────────────────────
 """
+        # Buttons Divided with Comments
         buttons = InlineKeyboardMarkup([
+            # --- Row 1: Basic Settings ---
             [
                 InlineKeyboardButton("⌂ Greetings ⌂", callback_data="greetings"),
                 InlineKeyboardButton("⌂ Clean Service ⌂", callback_data="Clean-Service"),
-                InlineKeyboardButton("⌂ Locks ⌂", callback_data="locks"),
             ],
+            # --- Row 2: Protection ---
+            [
+                InlineKeyboardButton("⌂ Locks ⌂", callback_data="locks"),
+                InlineKeyboardButton("⌂ Media Guardian ⌂", callback_data="Media-Guardian"),
+            ],
+            # --- Row 3: Admin Actions ---
             [
                 InlineKeyboardButton("⌂ Moderation ⌂", callback_data="moderation")
             ],
+            # --- Row 4: Advanced Safety ---
             [
                 InlineKeyboardButton("⌂ Anti-Cheater ⌂", callback_data="anti-cheater")
             ],
+            # --- Row 5: Back Button ---
             [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
         ])
 
@@ -94,7 +110,7 @@ Choose a category below to explore commands:
         await message.edit_media(media=media, reply_markup=buttons)
 
 # ==========================================================
-# Callbacks
+# GENERAL CALLBACKS (Help & Back)
 # ==========================================================
     @app.on_callback_query(filters.regex("help"))
     async def help_callback(client, callback_query):
@@ -108,6 +124,9 @@ Choose a category below to explore commands:
         await send_start_menu(callback_query.message, user)
         await callback_query.answer()
 
+# ==========================================================
+# GREETINGS
+# ==========================================================
     @app.on_callback_query(filters.regex("greetings"))
     async def greetings_callback(client, callback_query):
         text = """
@@ -129,6 +148,9 @@ Supported Placeholders:
         await callback_query.message.edit_media(media=media, reply_markup=buttons)
         await callback_query.answer()
 
+# ==========================================================
+# LOCKS SYSTEM
+# ==========================================================
     @app.on_callback_query(filters.regex("locks"))
     async def locks_callback(client, callback_query):
         text = """
@@ -147,6 +169,9 @@ Types: url, sticker, media, username, etc.
         await callback_query.message.edit_media(media=media, reply_markup=buttons)
         await callback_query.answer()
 
+# ==========================================================
+# MODERATION
+# ==========================================================
     @app.on_callback_query(filters.regex("moderation"))
     async def moderation_callback(client, callback_query):
         text = """
@@ -162,6 +187,9 @@ Types: url, sticker, media, username, etc.
         await callback_query.message.edit_media(media=media, reply_markup=buttons)
         await callback_query.answer()
 
+# ==========================================================
+# CLEAN SERVICE
+# ==========================================================
     @app.on_callback_query(filters.regex("Clean-Service"))
     async def clean_service_callback(client, callback_query):
         text = "Clean up service messages like join/leave.\nCommands: /cleanservice, /keepservice"
@@ -170,6 +198,9 @@ Types: url, sticker, media, username, etc.
         await callback_query.message.edit_media(media=media, reply_markup=buttons)
         await callback_query.answer()
 
+# ==========================================================
+# ANTI CHEATER
+# ==========================================================
     @app.on_callback_query(filters.regex("anti-cheater"))
     async def anti_cheater_callback(client, callback_query):
         text = "🛡️ Anti-Cheater System\n\nAutomatically demotes admins who kick/ban too many users."
@@ -179,7 +210,7 @@ Types: url, sticker, media, username, etc.
         await callback_query.answer()
 
 # ==========================================================
-# Owner Commands
+# OWNER COMMANDS
 # ==========================================================
     @app.on_message(filters.private & filters.command("broadcast"))
     async def broadcast_message(client, message):
@@ -200,4 +231,4 @@ Types: url, sticker, media, username, etc.
         if message.from_user.id != OWNER_ID: return
         users = await db.get_all_users()
         await message.reply_text(f"💡 Total users: {len(users)}")
-        
+    
