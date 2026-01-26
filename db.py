@@ -245,3 +245,55 @@ async def is_noevents_enabled(chat_id: int) -> bool:
     data = await db.cleaner.find_one({"chat_id": chat_id})
     return data.get("noevents", False) if data else False
     
+# ==========================================================
+# 🛡️ ADVANCED FILTERS (Hashtags, Links, Flood, etc.)
+# ==========================================================
+
+# 1. No Hashtags
+async def set_nohashtags_status(chat_id: int, status: bool):
+    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"nohashtags": status}}, upsert=True)
+
+async def is_nohashtags_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("nohashtags", False) if data else False
+
+# 2. Anti-Flood
+async def set_antiflood_status(chat_id: int, status: bool):
+    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"antiflood": status}}, upsert=True)
+
+async def is_antiflood_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("antiflood", False) if data else False
+
+# 3. No Links (URLs, Mentions, Buttons)
+async def set_nolinks_status(chat_id: int, status: bool):
+    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"nolinks": status}}, upsert=True)
+
+async def is_nolinks_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("nolinks", False) if data else False
+
+# 4. No Forwards
+async def set_noforwards_status(chat_id: int, status: bool):
+    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"noforwards": status}}, upsert=True)
+
+async def is_noforwards_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("noforwards", False) if data else False
+
+# 5. No Contacts
+async def set_nocontacts_status(chat_id: int, status: bool):
+    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"nocontacts": status}}, upsert=True)
+
+async def is_nocontacts_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("nocontacts", False) if data else False
+
+# 6. No Locations
+async def set_nolocations_status(chat_id: int, status: bool):
+    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"nolocations": status}}, upsert=True)
+
+async def is_nolocations_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("nolocations", False) if data else False
+    
