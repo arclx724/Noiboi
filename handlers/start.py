@@ -61,21 +61,21 @@ My name is MissKaty ️. I have many useful features for you, feel free to add m
             await message.edit_media(media=media, reply_markup=buttons)
 
 # ==========================================================
-# Start Command (Fixed Indentation & User Object)
-# ==========================================================
-        @app.on_message(filters.new_chat_members)
-    async def welcome_bot(client, message):
-        for member in message.new_chat_members:
-            if member.id == client.me.id:
-                # ... (Text message part) ...
-                
-                # 👇👇👇 BUTTON MEIN LINK ADD KIYA 👇👇👇
-                buttons = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Commands ❓", url=f"https://t.me/{BOT_USERNAME}?start=help")]
-                ])
-                # 👆👆👆 DEKHO 'url' WALA PART 👆👆👆
-                
-                await message.reply_text(text, reply_markup=buttons)
+    # 3. START COMMAND (Logic Here)
+    # ==========================================================
+    @app.on_message(filters.private & filters.command("start"))
+    async def start_command(client, message):
+        user = message.from_user
+        await db.add_user(user.id, user.first_name)
+        
+        # --- DEEP LINK LOGIC ---
+        if len(message.command) > 1 and message.command[1] == "help":
+            await send_help_menu(message)
+            return
+
+        # --- NORMAL START ---
+        await send_start_menu(message, user)
+
 
 # ==========================================================
 # Help Menu Message
