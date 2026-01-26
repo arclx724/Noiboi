@@ -274,8 +274,8 @@ Types: url, sticker, media, username, etc.
         users = await db.get_all_users()
         await message.reply_text(f"💡 Total users: {len(users)}")
     
-    # ==========================================================
-    # 5. NEW CHAT MEMBERS (Jab Bot Group me add ho)
+        # ==========================================================
+    # 7. NEW CHAT MEMBERS (Welcome Bot Logic Fixed)
     # ==========================================================
     @app.on_message(filters.new_chat_members)
     async def welcome_bot(client, message):
@@ -283,7 +283,7 @@ Types: url, sticker, media, username, etc.
             # Agar add hone wala member khud Bot hai
             if member.id == client.me.id:
                 
-                # Message Text (Formatting fixed)
+                # 1. Aapka Custom Text
                 text = (
                     f"🌟 ᴛʜᴀɴᴋꜱ ꜰᴏʀ ɢɪᴠɪɴɢ ᴍᴇ ᴀ ᴄʜᴀɴᴄᴇ ᴛᴏ ʜᴀɴᴅʟᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ **{message.chat.title}**! 🛡️\n\n"
                     "🛡️ ɴᴏᴡ ɪ ᴄᴀɴ sᴀᴠᴇ ʏᴏᴜʀ ɢʀᴏᴜᴘ ꜰʀᴏᴍ sᴜsᴘᴇɴsɪᴏɴ ᴀɴᴅ ᴄᴏᴘʏʀɪɢʜᴛ sᴛʀɪᴋᴇ ʙʏ ᴅᴇʟᴇᴛɪɴɢ ᴛʜᴇ ᴇᴅɪᴛᴇᴅ ᴍᴇssᴀɢᴇ.\n"
@@ -291,12 +291,11 @@ Types: url, sticker, media, username, etc.
                     "🔔 ɴᴇᴇᴅ ʜᴇʟᴘ ᴊᴜsᴛ ᴄʟɪᴄᴋ ʜᴇʀᴇ 👇!!"
                 )
 
-                # Button (Wahi same logic)
+                # 2. Button (Deep Link use kiya hai taaki Group spam na ho)
                 buttons = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Commands ❓", callback_data="help")]
+                    [InlineKeyboardButton("Commands ❓", url=f"https://t.me/{BOT_USERNAME}?start=help")]
                 ])
 
-                # Message Bhejo Button ke saath
-                await message.reply_text(text, reply_markup=buttons)
-
-        
+                # 3. Direct Reply (No Edit Logic needed here)
+                await message.reply_photo(START_IMAGE, caption=text, reply_markup=buttons)
+                
