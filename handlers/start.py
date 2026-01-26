@@ -36,7 +36,7 @@ Highlights:
 
         buttons = InlineKeyboardMarkup([
             # --- Add to Group Button ---
-            [InlineKeyboardButton("⚒️ Add to Group ⚒️", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
+            [InlineKeyboardButton("Add Me To Your Group 🎉", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
             
             # --- Support & Updates ---
             [
@@ -46,12 +46,12 @@ Highlights:
             
             # --- Owner & Repo ---
             [
-                InlineKeyboardButton("※ ŎŴɳēŔ ※", url=f"tg://user?id={OWNER_ID}"),
-                InlineKeyboardButton("Repo", url="https://t.me/RoboKaty"),
+                InlineKeyboardButton("Dev 👩‍💻", url=f"tg://user?id={OWNER_ID}"),
+                InlineKeyboardButton("Report Bug 🐞", url="https://t.me/RoboKaty"),
             ],
             
             # --- Help Command ---
-            [InlineKeyboardButton("📚 Help Commands 📚", callback_data="help")]
+            [InlineKeyboardButton("Commands ❓", callback_data="help")]
         ])
 
         if message.text:
