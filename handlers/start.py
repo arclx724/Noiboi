@@ -118,7 +118,7 @@ Choose a category below to explore commands:
 
     @app.on_callback_query(filters.regex("locks"))
     async def locks_callback(client, callback_query):
-        text = "⚙ Locks System\n\n- /lock <type>\n- /unlock <type>\n- /locks"
+        text = "🔐 **Lock System Guide**\n\n**Commands:**\n- /lock <type>: Lock a specific feature.\n- /unlock <type>: Unlock a specific feature.\n- /locks: View current group settings.\n\n**Available Types:**\nurl, sticker, media, username, forward\n\n**Example:**\n/lock url → Blocks all links.\n/unlock sticker → Allows stickers again.\n\n⚠️ **Note:** Admins are not affected by these locks."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
