@@ -63,12 +63,19 @@ My name is MissKaty ️. I have many useful features for you, feel free to add m
 # ==========================================================
 # Start Command (Fixed Indentation & User Object)
 # ==========================================================
-    @app.on_message(filters.private & filters.command("start"))
-    async def start_command(client, message):
-        user = message.from_user
-        await db.add_user(user.id, user.first_name)
-        # Sahi: Pura 'user' object bhejein
-        await send_start_menu(message, user) 
+        @app.on_message(filters.new_chat_members)
+    async def welcome_bot(client, message):
+        for member in message.new_chat_members:
+            if member.id == client.me.id:
+                # ... (Text message part) ...
+                
+                # 👇👇👇 BUTTON MEIN LINK ADD KIYA 👇👇👇
+                buttons = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Commands ❓", url=f"https://t.me/{BOT_USERNAME}?start=help")]
+                ])
+                # 👆👆👆 DEKHO 'url' WALA PART 👆👆👆
+                
+                await message.reply_text(text, reply_markup=buttons)
 
 # ==========================================================
 # Help Menu Message
