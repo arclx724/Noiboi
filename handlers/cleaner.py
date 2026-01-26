@@ -23,7 +23,7 @@ def register_cleaner_handlers(app: Client):
         # Admin Check
         member = await message.chat.get_member(user_id)
         if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-            await message.reply_text("❌ **Access Denied!**\nSirf Admins ye command use kar sakte hain.")
+            await message.reply_text("❌ **Access Denied!**\nOnly Admins Can Use This Command.")
             return
 
         if len(message.command) > 1:
@@ -32,7 +32,7 @@ def register_cleaner_handlers(app: Client):
             # Bot Permission Check
             bot_member = await message.chat.get_member(message._client.me.id)
             if not bot_member.privileges or not bot_member.privileges.can_delete_messages:
-                await message.reply_text("⚠️ **Error:** Mere paas **Delete Messages** ka right nahi hai!")
+                await message.reply_text("⚠️ **Error:** I Don't Have **Delete Messages** Permission!")
                 return
 
             if arg == "on":
