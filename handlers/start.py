@@ -269,3 +269,16 @@ Types: url, sticker, media, username, etc.
         users = await db.get_all_users()
         await message.reply_text(f"💡 Total users: {len(users)}")
     
+# ==========================================================
+# NEW CHAT MEMBERS (Jab Bot Group me add ho)
+# ==========================================================
+    @app.on_message(filters.new_chat_members)
+    async def welcome_bot(client, message):
+        for member in message.new_chat_members:
+            # Agar add hone wala member khud Bot hai
+            if member.id == client.me.id:
+                await message.reply_text(
+                    f"Thanks for adding me to **{message.chat.title}**! 🛡️\n\n"
+                    "Please make me **Admin** to enable my features."
+                )
+                
