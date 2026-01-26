@@ -217,3 +217,31 @@ async def is_antiedit_enabled(chat_id: int) -> bool:
     data = await db.antiedit.find_one({"chat_id": chat_id})
     return data.get("enabled", False) if data else False
     
+# ==========================================================
+# 🧹 CLEANER SYSTEM (No Commands & No Events)
+# ==========================================================
+
+# --- No Commands ---
+async def set_nocommands_status(chat_id: int, status: bool):
+    await db.cleaner.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"nocommands": status}},
+        upsert=True
+    )
+
+async def is_nocommands_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("nocommands", False) if data else False
+
+# --- No Events (Join/Left) ---
+async def set_noevents_status(chat_id: int, status: bool):
+    await db.cleaner.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"noevents": status}},
+        upsert=True
+    )
+
+async def is_noevents_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("noevents", False) if data else False
+    
