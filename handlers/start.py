@@ -125,7 +125,15 @@ Choose a category below to explore commands:
 
     @app.on_callback_query(filters.regex("Media-Guardian"))
     async def media_callback(client, callback_query):
-        text = "⏳ Media Auto-Delete\n\n- /setdelay 10 s\n- /setdelay off"
+        text = "**Set auto-delete delay media using:**
+
+   /setdelay on/off
+
+    /setdelay <value> [s/m/h]
+   Examples:
+    /setdelay 10 s → 10 seconds
+    /setdelay 5 m  → 5 minutes
+    /setdelay 1 h  → 1 hour (max 24h)"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
