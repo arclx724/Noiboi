@@ -7,8 +7,6 @@ import db
 
 # ================= CONFIGURATION =================
 # Production Limit (Normal Use ke liye)
-# Recommended: 15 actions in 5 minutes (300 seconds)
-# Aap apne hisaab se set kar lo
 LIMIT = 3
 TIME_FRAME = 300 
 
@@ -50,17 +48,25 @@ def register_anti_nuke(app: Client):
     async def nuke_watcher(client, update: ChatMemberUpdated):
         chat = update.chat
         
+        # FIX 1: Safety Check for Actor
         if not update.from_user:
             return
         actor = update.from_user
-        target = update.new_chat_member.user
+
+        # FIX 2: Safely get Target User
+        # Kabhi kabhi 'new_chat_member' None hota hai, isliye crash ho rha tha
+        if update.new_chat_member:
+            target = update.new_chat_member.user
+        elif update.old_chat_member:
+            target = update.old_chat_member.user
+        else:
+            return # Agar dono nahi hai to ignore karo
 
         # 1. SAFETY: Bot aur Owner ko ignore karo
         if actor.id == client.me.id or actor.id == OWNER_ID:
             return
 
         # 2. Whitelist Check (Database)
-        # Agar aap chahte ho ki trusted admins bhi safe rahein
         if await db.is_user_whitelisted(chat.id, actor.id):
             return
 
@@ -72,10 +78,11 @@ def register_anti_nuke(app: Client):
 
         # Case A: Kick/Ban
         if new in [ChatMemberStatus.LEFT, ChatMemberStatus.BANNED]:
+            # Agar actor aur target alag hain (mtlb kisi ne kick kiya)
             if actor.id != target.id:
                 action_detected = True
 
-        # Case B: Mass Promotion (Optional: Agar chaho to enable karo)
+        # Case B: Mass Promotion (Optional)
         elif old not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] and \
              new in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
              action_detected = True
