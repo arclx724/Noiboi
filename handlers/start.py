@@ -147,7 +147,7 @@ Choose a category below to explore commands:
     @app.on_callback_query(filters.regex("Clean-Service"))
     async def clean_service_callback(client, callback_query):
         # Backticks removed here: `/command` -> /command
-        text = "🧹 **Clean Service**\n\n- /noevents: Filter 'X joined or left the group' notifications.\n- /nolinks: Filter messages with links, mentions, forwards, or reply markup.\n- /noforwards: Filter messages with a mention of any participants.\n- /nocontacts: Filter messages with contact numbers of users.\n- /nolocations: Filter messages containing user locations.\n- /nocommands: Filter commands from group members.\n- /nohashtags: Filter messages containing hashtags.\n- /antiflood: Limit frequent messages (3 per 20 seconds)."
+        text = "🧹 **Clean Service**\n\n- /noevents on/off: Filter 'X joined or left the group' notifications.\n- /nolinks on/off: Filter messages with links, mentions, forwards, or reply markup.\n- /noforwards on/off: Filter messages with a mention of any participants.\n- /nocontacts on/off: Filter messages with contact numbers of users.\n- /nolocations on/off: Filter messages containing user locations.\n- /nocommands on/off: Filter commands from group members.\n- /nohashtags on/off: Filter messages containing hashtags.\n- /antiflood on/off: Limit frequent messages (3 per 20 seconds)."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
