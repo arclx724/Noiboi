@@ -139,7 +139,7 @@ Choose a category below to explore commands:
 
     @app.on_callback_query(filters.regex("moderation"))
     async def moderation_callback(client, callback_query):
-        text = "👮‍♂️ **Moderation**\n\n- /kick: Kick a user./n /ban: Ban a user./n /mute: Mute a user.\n /promote: Promote a user./n /demote: Demote a user."
+        text = "👮‍♂️ **Moderation**\n\n- /kick: Kick a user.\n- /ban: Ban a user.\n- /mute: Mute a user.\n- /promote: Promote a user.\n- /demote: Demote a user."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
@@ -154,7 +154,7 @@ Choose a category below to explore commands:
 
     @app.on_callback_query(filters.regex("anti-cheater"))
     async def anti_cheater_callback(client, callback_query):
-        text = "🛡️ **Anti-Cheater**\n\n**-Automatically demotes admins who abuse power.— no commands needed.**/n/n 🚨 The bot tracks admin actions./n - If an admin kicks or bans more than 10 users in 24 hours, they are auto‑demoted./n/n - Limits reset automatically every 24 hours./n/n 🔒 Only admins promoted by this bot can be auto‑demoted./n Use /promote and give the bot Add Admin permission./n/n 🛡️ Protects your group from fake or abusive admins."
+        text = "**Anti-Cheater**\n\n - Works automatically — no commands needed\n\n 🚨 **The bot tracks admin actions.**\n - If an admin kicks or bans more than 10 users in 24 hours, they are auto-demoted.\n\n - Limits reset automatically every 24 hours.\n\n 🔒 **Only admins promoted by this bot can be auto-demoted.**\n Use /promote and give the bot Add Admin permission.\n\n 🛡️ Protects your group from fake or abusive admins."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
