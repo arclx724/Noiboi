@@ -65,6 +65,21 @@ async def get_locks(chat_id: int):
     return data.get("locks", {}) if data else {}
 
 # ==========================================================
+# 🤬 ABUSE SYSTEM (Missing Functions Restored)
+# ==========================================================
+
+async def set_abuse_status(chat_id: int, status: bool):
+    await db.abuse_settings.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"enabled": status}},
+        upsert=True
+    )
+
+async def is_abuse_enabled(chat_id: int) -> bool:
+    data = await db.abuse_settings.find_one({"chat_id": chat_id})
+    return data.get("enabled", False) if data else False
+
+# ==========================================================
 # ⚠️ WARN SYSTEM
 # ==========================================================
 
@@ -120,7 +135,7 @@ async def get_all_users():
     return users
 
 # ==========================================================
-# 🤬 AUTH & WHITELIST SYSTEM (For Anti-Nuke)
+# 🛡️ AUTH & WHITELIST SYSTEM (For Anti-Nuke)
 # ==========================================================
 
 async def add_whitelist(chat_id: int, user_id: int):
