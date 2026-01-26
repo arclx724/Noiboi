@@ -13,6 +13,7 @@ def register_handlers(app: Client):
     # 1. SEND START MENU
     # ==========================================================
     async def send_start_menu(message, user, is_edit=False):
+        # Yahan formatting rehne di hai kyunki ye crash nahi karta
         text = f"""
 ✨ **Hey there {user.mention}!** ✨
 
@@ -107,45 +108,46 @@ Choose a category below to explore commands:
         await send_start_menu(callback_query.message, user, is_edit=True)
         await callback_query.answer()
 
-    # --- Feature Callbacks (FIX: Removed Bold to prevent EntityBoundsInvalid) ---
+    # --- Feature Callbacks (FIXED: ALL MARKDOWN REMOVED TO PREVENT CRASH) ---
     @app.on_callback_query(filters.regex("greetings"))
     async def greetings_callback(client, callback_query):
-        text = "⚙ Welcome System\n\n- `/setwelcome <text>`\n- `/welcome on/off`"
+        text = "⚙ Welcome System\n\n- /setwelcome <text>\n- /welcome on/off"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("locks"))
     async def locks_callback(client, callback_query):
-        text = "⚙ Locks System\n\n- `/lock <type>`\n- `/unlock <type>`\n- `/locks`"
+        text = "⚙ Locks System\n\n- /lock <type>\n- /unlock <type>\n- /locks"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("Media-Guardian"))
     async def media_callback(client, callback_query):
-        text = "⏳ Media Auto-Delete\n\n- `/setdelay 10 s`\n- `/setdelay off`"
+        text = "⏳ Media Auto-Delete\n\n- /setdelay 10 s\n- /setdelay off"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("No-Bots"))
     async def bots_callback(client, callback_query):
-        text = "🤖 No Bots System\n\n- `/nobots on`\n- `/nobots off`"
+        text = "🤖 No Bots System\n\n- /nobots on\n- /nobots off"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("moderation"))
     async def moderation_callback(client, callback_query):
-        text = "👮‍♂️ Moderation\n\n- `/kick`, `/ban`, `/mute`\n- `/promote`, `/demote`"
+        text = "👮‍♂️ Moderation\n\n- /kick, /ban, /mute\n- /promote, /demote"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("Clean-Service"))
     async def clean_service_callback(client, callback_query):
-        text = "🧹 Clean Service\n\n- `/cleanservice <type>`\n- `/keepservice <type>`"
+        # Backticks removed here: `/command` -> /command
+        text = "🧹 Clean Service\n\n- /cleanservice <type>\n- /keepservice <type>"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
