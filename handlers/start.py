@@ -93,6 +93,7 @@ Choose a category below to explore commands:
             [
                 InlineKeyboardButton("⌂ Locks ⌂", callback_data="locks"),
                 InlineKeyboardButton("⌂ Media Guardian ⌂", callback_data="Media-Guardian"),
+                InlineKeyboardButton("⌂ No Bots ⌂", callback_data="No-Bots"),
             ],
             # --- Row 3: Admin Actions ---
             [
@@ -184,6 +185,21 @@ Types: url, sticker, media, username, etc.
     /setdelay 10 s → 10 seconds
     /setdelay 5 m  → 5 minutes
     /setdelay 1 h  → 1 hour (max 24h)
+"""
+        buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
+        media = InputMediaPhoto(media=START_IMAGE, caption=text)
+        await callback_query.message.edit_media(media=media, reply_markup=buttons)
+        await callback_query.answer()
+
+# ==========================================================
+# NO-BOTS
+# ==========================================================
+    @app.on_callback_query(filters.regex("No-Bots"))
+    async def locks_callback(client, callback_query):
+        text = """
+**No Bots**
+
+   /nobots - Protect your group from users who invite spam bots.
 """
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         media = InputMediaPhoto(media=START_IMAGE, caption=text)
