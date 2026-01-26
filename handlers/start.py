@@ -60,15 +60,20 @@ My name is MissKaty ️. I have many useful features for you, feel free to add m
             media = InputMediaPhoto(media=START_IMAGE, caption=text)
             await message.edit_media(media=media, reply_markup=buttons)
 
-# ==========================================================
 # 3. START COMMAND (Logic Here)
-# ==========================================================
+    # ==========================================================
     @app.on_message(filters.private & filters.command("start"))
-    async def start_command(client, message):
-        user = message.from_user
-        await db.add_user(user.id, user.first_name)
-        # Sahi: Pura 'user' object bhejein
-        await send_start_menu(message, user)
+    async def start_command(client, message):
+        user = message.from_user
+        await db.add_user(user.id, user.first_name)
+        
+        # --- DEEP LINK LOGIC ---
+        if len(message.command) > 1 and message.command[1] == "help":
+            await send_help_menu(message, is_edit=False)
+            return
+
+        # --- NORMAL START ---
+        await send_start_menu(message, user, is_edit=False)
 
 # ==========================================================
 # Help Menu Message
