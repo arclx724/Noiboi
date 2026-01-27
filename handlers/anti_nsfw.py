@@ -11,24 +11,27 @@ import db
 API_URL = "https://api.sightengine.com/1.0/check.json"
 TEMP_DOWNLOAD_PATH = "downloads/" 
 
+# Create download folder if it doesn't exist to prevent errors
 if not os.path.exists(TEMP_DOWNLOAD_PATH):
     os.makedirs(TEMP_DOWNLOAD_PATH)
 
 def register_antinsfw_handlers(app: Client):
 
     # ======================================================
-    # 1. API MANAGEMENT (Owner Only)
+    # 1. API MANAGEMENT (Add/Check Keys)
     # ======================================================
 
     @app.on_message(filters.command(["addapi", "addamthy"]) & filters.private)
     async def add_nsfw_api_cmd(client, message):
         command_used = message.command[0]
         
+        # Security: Only Owner can use /addapi
         if command_used == "addapi":
             if message.from_user.id != int(OWNER_ID):
                 await message.reply_text("❌ **Access Denied!** Only the Owner can use this command.")
                 return
 
+        # Check for correct usage
         if len(message.command) != 3:
             await message.reply_text(f"Usage: `/{command_used} <api_user> <api_secret>`")
             return
@@ -37,7 +40,9 @@ def register_antinsfw_handlers(app: Client):
         api_secret = message.command[2]
         
         try:
+            # Add to Database
             await db.add_nsfw_api(api_user, api_secret)
+            
             if command_used == "addamthy":
                 await message.reply_text(f"🎉 **Thanks for contributing!**\nAPI Key Added successfully.")
             else:
@@ -47,10 +52,13 @@ def register_antinsfw_handlers(app: Client):
 
     @app.on_message(filters.command("checkapi") & filters.private)
     async def check_api_stats(client, message):
+        # Only Owner can check stats to protect privacy
         if message.from_user.id != int(OWNER_ID):
             return
         
         count = await db.get_all_nsfw_apis_count()
+        
+        # Calculation: 1 Free SightEngine Key = 2000 Scans/Month
         total_scans = count * 2000
         
         await message.reply_text(
@@ -61,26 +69,17 @@ def register_antinsfw_handlers(app: Client):
         )
 
     # ======================================================
-    # 2. GROUP SETTINGS (With Explicit Checks)
+    # 2. GROUP SETTINGS (On/Off)
     # ======================================================
 
     @app.on_message(filters.command("antinsfw") & filters.group)
     async def antinsfw_switch(client, message):
-        # 1. USER PERMISSION CHECK
+        # Admin Permission Check
         user = await client.get_chat_member(message.chat.id, message.from_user.id)
         if user.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-            await message.reply_text("You need to be an admin to do this.")
+            await message.reply_text("❌ **Access Denied!** Only Admins can use this command.")
             return
 
-        # 2. BOT PERMISSION CHECK (Explicit)
-        # We check "me" (the bot itself)
-        me = await client.get_chat_member(message.chat.id, "me")
-        
-        if me.status != ChatMemberStatus.ADMINISTRATOR or not me.privileges.can_delete_messages:
-            await message.reply_text("Please give me permission to delete messages..!!!")
-            return
-
-        # 3. COMMAND LOGIC
         if len(message.command) > 1:
             arg = message.command[1].lower()
             if arg == "on":
@@ -93,21 +92,27 @@ def register_antinsfw_handlers(app: Client):
             await message.reply_text("Usage: `/antinsfw on` or `/antinsfw off`")
 
     # ======================================================
-    # 3. SCANNER LOGIC
+    # 3. SCANNER LOGIC (Disk-Based & Robust Parsing)
     # ======================================================
 
     async def scan_file_on_disk(file_path):
+        """
+        Reads a file from the local disk and sends it to SightEngine API.
+        Handles API rotation if a key is exhausted or invalid.
+        """
         api_data = await db.get_nsfw_api()
         if not api_data:
-            print("DEBUG: No API Keys available!")
+            print("DEBUG: No API Keys available! Please add keys using /addapi")
             return None 
 
         try:
             data = aiohttp.FormData()
+            # Request detection for Nudity, Weapons (WAD), and Gore
             data.add_field('models', 'nudity,wad,gore')
             data.add_field('api_user', api_data['api_user'])
             data.add_field('api_secret', api_data['api_secret'])
             
+            # Open file in binary mode
             with open(file_path, 'rb') as f:
                 data.add_field('media', f, filename='image.jpg')
 
@@ -115,11 +120,14 @@ def register_antinsfw_handlers(app: Client):
                     async with session.post(API_URL, data=data) as resp:
                         result = await resp.json()
             
+            # Check for API Errors (Limit Exceeded or Invalid Key)
             if result['status'] == 'failure':
                 error_code = result.get('error', {}).get('code')
+                # Code 21 = Rate Limit, 23 = Monthly Limit, 103 = Invalid Key
                 if error_code in [21, 23, 103]: 
                     print(f"DEBUG: Removing exhausted/invalid API ({api_data['api_user']})...")
                     await db.remove_nsfw_api(api_data['api_user'])
+                    # Retry recursively with the next available key
                     return await scan_file_on_disk(file_path)
                 return None
             
@@ -133,91 +141,103 @@ def register_antinsfw_handlers(app: Client):
     async def nsfw_watcher(client, message):
         chat_id = message.chat.id
         
+        # 1. Check if Anti-NSFW is enabled in this group
         if not await db.is_antinsfw_enabled(chat_id):
             return
 
+        # 2. Identify the Media Type and get the correct file object
         media = None
+        
         if message.photo:
             media = message.photo
         elif message.sticker:
             if message.sticker.thumbs:
+                # Scan the largest available thumbnail for stickers
                 media = message.sticker.thumbs[-1]
             elif not message.sticker.is_animated and not message.sticker.is_video:
+                # If it's a static sticker (webp), scan the file itself
                 media = message.sticker
         elif message.video:
             if message.video.thumbs:
+                # Scan the largest thumbnail of the video
                 media = message.video.thumbs[-1]
         elif message.animation: 
             if message.animation.thumbs:
+                # Scan the thumbnail of the GIF
                 media = message.animation.thumbs[-1]
         elif message.document and "image" in message.document.mime_type:
             media = message.document
 
-        if not media: return 
+        if not media:
+            return 
 
+        # Create a unique filename to avoid conflicts between concurrent scans
         file_path = os.path.join(TEMP_DOWNLOAD_PATH, f"scan_{chat_id}_{message.id}.jpg")
 
         try:
-            if media.file_size > 5 * 1024 * 1024: return 
+            # 3. Size Limit Check (5MB) to save bandwidth and speed up processing
+            if media.file_size > 5 * 1024 * 1024: 
+                return 
 
+            # 4. Download media to Disk
             await client.download_media(media, file_name=file_path)
-            if not os.path.exists(file_path): return
+            
+            # Verify file exists
+            if not os.path.exists(file_path): 
+                return
 
+            # 5. Send to SightEngine for Scanning
             result = await scan_file_on_disk(file_path)
+            
+            # 6. Cleanup: Delete the file immediately after scanning
             try: os.remove(file_path)
             except: pass
 
-            if not result: return 
+            if not result: 
+                return 
 
+            # 7. Parse Score (Robust Logic for Dict vs Float)
             nsfw_score = 0
+            
+            # --- Nudity Check ---
             if 'nudity' in result:
+                # 'nudity' is usually a dict: {'raw': 0.1, 'safe': 0.9, 'partial': 0.0}
                 raw = result['nudity'].get('raw', 0)
                 partial = result['nudity'].get('partial', 0)
                 nsfw_score = max(nsfw_score, raw, partial)
             
+            # --- Weapon / Drugs Check ---
             if 'wad' in result:
+                # 'wad' is a dict: {'weapon': 0.9, 'drugs': 0.0 ...}
                 weapon = result['wad'].get('weapon', 0)
                 nsfw_score = max(nsfw_score, weapon)
             elif 'weapon' in result:
+                # Handle inconsistent API responses where 'weapon' might be at root
                 w = result['weapon']
-                if isinstance(w, dict): nsfw_score = max(nsfw_score, w.get('prob', 0))
-                elif isinstance(w, float): nsfw_score = max(nsfw_score, w)
+                if isinstance(w, dict): 
+                    nsfw_score = max(nsfw_score, w.get('prob', 0))
+                elif isinstance(w, float) or isinstance(w, int): 
+                    nsfw_score = max(nsfw_score, w)
 
+            # --- Gore Check ---
             if 'gore' in result:
                 g = result['gore']
+                # Gore can be {'prob': 0.9} OR just 0.9 directly. Handle both.
                 if isinstance(g, dict): 
                     gore_prob = g.get('prob', 0)
                     nsfw_score = max(nsfw_score, gore_prob)
                 elif isinstance(g, float) or isinstance(g, int):
                     nsfw_score = max(nsfw_score, g)
 
-            # --- CRITICAL ACTION SECTION ---
+            # 8. ACTION: Delete if Score > 0.60 (60%)
             if nsfw_score > 0.60:
                 percent = int(nsfw_score * 100)
-
-                # 1. HARD PERMISSION CHECK (The Logic Fix)
-                # Before trying to delete, we explicitly ask Telegram: "Can I delete?"
-                try:
-                    me = await client.get_chat_member(chat_id, "me")
-                    
-                    if me.status != ChatMemberStatus.ADMINISTRATOR or not me.privileges.can_delete_messages:
-                        # If I am not admin OR I don't have delete rights
-                        await message.reply_text("Please give me permission to delete messages..!!!")
-                        return # Stop here, don't try to delete
-                except Exception:
-                    # If we can't even check permissions (very rare), reply anyway
-                    await message.reply_text("Please give me permission to delete messages..!!!")
-                    return
-
-                # 2. DELETE (Now we know we have rights, but still wrap in try-except)
-                try: 
-                    await message.delete()
-                except Exception:
-                    # Fallback just in case something else blocks it (like User is Admin)
-                    await message.reply_text("Please give me permission to delete messages..!!!")
-                    return 
                 
-                # 3. SEND WARNING
+                # Delete the message
+                try: await message.delete()
+                except: pass # Bot might not have delete rights
+                
+                # Send Warning Message
                 text = (
                     f"⚠️ **NSFW Detected!**\n"
                     f"Hey {message.from_user.mention}, NSFW content is not allowed here!\n"
@@ -232,13 +252,16 @@ def register_antinsfw_handlers(app: Client):
                 
                 warn_msg = await message.reply_text(text, reply_markup=buttons)
                 
+                # Auto-delete warning after 60 seconds
                 await asyncio.sleep(60)
                 try: await warn_msg.delete()
                 except: pass
 
         except Exception as e:
             print(f"DEBUG CRITICAL ERROR: {e}")
+            # Ensure file is deleted even if a critical error occurs
             if os.path.exists(file_path):
                 try: os.remove(file_path)
                 except: pass
-                    
+
+            
