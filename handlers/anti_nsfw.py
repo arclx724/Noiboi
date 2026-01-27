@@ -4,7 +4,7 @@ import asyncio
 import aiohttp
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.enums import ChatMemberStatus, MessageMediaType
+from pyrogram.enums import ChatMemberStatus
 from config import BOT_USERNAME, SUPPORT_GROUP, OWNER_ID
 import db
 
@@ -19,7 +19,10 @@ def register_antinsfw_handlers(app: Client):
 
     @app.on_message(filters.command("addapi") & filters.private)
     async def add_nsfw_api_cmd(client, message):
-        if message.from_user.id != OWNER_ID:
+        # --- DEBUG CHECK ---
+        # Agar user Owner nahi hai, to usko batao (Taaki confusion na ho)
+        if message.from_user.id != int(OWNER_ID):
+            await message.reply_text(f"❌ **Access Denied!**\nYou are not the Owner.\n\nYour ID: `{message.from_user.id}`\nOwner ID in Config: `{OWNER_ID}`")
             return
         
         # Format: /addapi <user> <secret>
@@ -31,11 +34,11 @@ def register_antinsfw_handlers(app: Client):
         api_secret = message.command[2]
         
         await db.add_nsfw_api(api_user, api_secret)
-        await message.reply_text(f"✅ API Added!\nUser: `{api_user}`")
+        await message.reply_text(f"✅ **API Added Successfully!**\nUser: `{api_user}`\nSecret: `******`")
 
     @app.on_message(filters.command("checkapi") & filters.private)
     async def check_api_stats(client, message):
-        if message.from_user.id != OWNER_ID:
+        if message.from_user.id != int(OWNER_ID):
             return
         
         count = await db.get_all_nsfw_apis_count()
@@ -49,7 +52,7 @@ def register_antinsfw_handlers(app: Client):
     async def antinsfw_switch(client, message):
         user = await client.get_chat_member(message.chat.id, message.from_user.id)
         if user.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-            await message.reply_text("❌ Access Denied!")
+            await message.reply_text("❌ Access Denied! Only Admins can change this.")
             return
 
         if len(message.command) > 1:
@@ -88,7 +91,7 @@ def register_antinsfw_handlers(app: Client):
             # Check for API Errors (Limit Exceeded)
             if result['status'] == 'failure':
                 error_code = result.get('error', {}).get('code')
-                # Code 21 = Rate Limit, Code 23 = Monthly Limit
+                # Code 21 = Rate Limit, Code 23 = Monthly Limit, 103 = Invalid
                 if error_code in [21, 23, 103]: 
                     # Remove bad API and retry
                     await db.remove_nsfw_api(api_data['api_user'])
@@ -110,26 +113,20 @@ def register_antinsfw_handlers(app: Client):
 
         # 2. Extract Media (Thumbnail Strategy)
         media = None
-        is_thumbnail = False
         
         if message.photo:
             media = message.photo
         elif message.sticker:
-            # Sticker ka thumbnail use karenge (agar animated hai to)
             if message.sticker.thumbs:
                 media = message.sticker.thumbs[0]
-                is_thumbnail = True
             elif not message.sticker.is_animated and not message.sticker.is_video:
-                # Static sticker (webp)
                 media = message.sticker
         elif message.video:
             if message.video.thumbs:
                 media = message.video.thumbs[0]
-                is_thumbnail = True
         elif message.animation: # GIF
             if message.animation.thumbs:
                 media = message.animation.thumbs[0]
-                is_thumbnail = True
         elif message.document and "image" in message.document.mime_type:
             media = message.document
 
@@ -199,4 +196,4 @@ def register_antinsfw_handlers(app: Client):
         except Exception as e:
             # Download fail or other error
             pass
-          
+        
