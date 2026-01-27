@@ -6,8 +6,25 @@ client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
 db = client['GroupHelpClone'] 
 
 # Collections
+users_col = db['users']          # <--- MISSING COLLECTION ADDED
 settings_col = db['settings']
 nsfw_api_col = db['nsfw_apis']
+
+# ======================================================
+# 👤 USER MANAGEMENT (Fixed Missing Functions)
+# ======================================================
+
+async def add_user(user_id, first_name):
+    """Adds a user to the database or updates their name."""
+    await users_col.update_one(
+        {"user_id": user_id},
+        {"$set": {"first_name": first_name}},
+        upsert=True
+    )
+
+async def get_all_users_count():
+    """Returns the total number of bot users."""
+    return await users_col.count_documents({})
 
 # ======================================================
 # 🔧 GENERAL SETTINGS HELPERS
@@ -125,15 +142,18 @@ async def add_nsfw_api(api_user, api_secret):
         })
 
 async def get_nsfw_api():
+    """Returns a RANDOM API key to balance the load (Rotation)."""
     pipeline = [{"$sample": {"size": 1}}]
     async for doc in nsfw_api_col.aggregate(pipeline):
         return doc
     return None
 
 async def remove_nsfw_api(api_user):
+    """Removes a dead or exhausted API key."""
     await nsfw_api_col.delete_one({"api_user": api_user})
 
 async def get_all_nsfw_apis_count():
+    """Returns the total number of active keys."""
     return await nsfw_api_col.count_documents({})
 
 # ======================================================
