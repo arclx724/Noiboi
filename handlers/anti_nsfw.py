@@ -73,7 +73,7 @@ def register_antinsfw_handlers(app: Client):
                 await message.reply_text("😌 **Anti-NSFW Disabled!**")
 
     # ======================================================
-    # 3. SCANNER LOGIC (FINAL FIX)
+    # 3. SCANNER LOGIC (FIXED MEMORY DOWNLOAD)
     # ======================================================
 
     async def scan_image(image_bytes):
@@ -147,20 +147,22 @@ def register_antinsfw_handlers(app: Client):
             print("DEBUG: No scannable media found. Exiting.")
             return 
 
-        # 2. Download (FIXED LOGIC)
+        # 2. Download (FIXED: in_memory=True)
         try:
             if media.file_size > 2 * 1024 * 1024: 
                 print("DEBUG: File too big (>2MB). Skipping.")
                 return 
 
-            print("DEBUG: Downloading media...")
-            file_stream = io.BytesIO()
-            file_stream.name = "sticker.jpg" # Dummy name for Pyrogram
-
-            # --- FIX: Pass stream directly without 'file_name=' keyword ---
-            await client.download_media(media, file_stream)
+            print("DEBUG: Downloading media to RAM...")
             
-            file_stream.seek(0)
+            # --- FINAL FIX: Use in_memory=True ---
+            # This returns the raw bytes directly, bypassing file path issues
+            downloaded_bytes = await client.download_media(media, in_memory=True)
+            
+            # Convert bytes to stream for API
+            file_stream = io.BytesIO(downloaded_bytes)
+            file_stream.name = "sticker.jpg" 
+            
             print("DEBUG: Download complete. Scanning...")
             
             # 3. Scan
