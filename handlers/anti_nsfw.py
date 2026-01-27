@@ -14,28 +14,39 @@ API_URL = "https://api.sightengine.com/1.0/check.json"
 def register_antinsfw_handlers(app: Client):
 
     # ======================================================
-    # 1. OWNER COMMANDS (Manage APIs)
+    # 1. API MANAGEMENT (Add Keys)
     # ======================================================
 
-    @app.on_message(filters.command("addapi") & filters.private)
+    # Combined Handler for /addapi (Owner) and /addamthy (Public)
+    @app.on_message(filters.command(["addapi", "addamthy"]) & filters.private)
     async def add_nsfw_api_cmd(client, message):
-        # --- DEBUG CHECK ---
-        # Agar user Owner nahi hai, to usko batao (Taaki confusion na ho)
-        if message.from_user.id != int(OWNER_ID):
-            await message.reply_text(f"❌ **Access Denied!**\nYou are not the Owner.\n\nYour ID: `{message.from_user.id}`\nOwner ID in Config: `{OWNER_ID}`")
-            return
+        command_used = message.command[0] # Check konsa command use hua
         
-        # Format: /addapi <user> <secret>
+        # LOGIC: Agar /addapi hai, toh Owner check karo
+        if command_used == "addapi":
+            if message.from_user.id != int(OWNER_ID):
+                await message.reply_text("❌ **Access Denied!**\n`/addapi` is reserved for the Owner.\nYou can use `/addamthy` to contribute keys.")
+                return
+
+        # LOGIC: Agar /addamthy hai, toh koi check nahi (Sabke liye open)
+
+        # Format Check: /command <user> <secret>
         if len(message.command) != 3:
-            await message.reply_text("Usage: `/addapi <api_user> <api_secret>`")
+            await message.reply_text(f"Usage: `/{command_used} <api_user> <api_secret>`")
             return
         
         api_user = message.command[1]
         api_secret = message.command[2]
         
+        # Database mein add karo
         await db.add_nsfw_api(api_user, api_secret)
-        await message.reply_text(f"✅ **API Added Successfully!**\nUser: `{api_user}`\nSecret: `******`")
+        
+        if command_used == "addamthy":
+            await message.reply_text(f"🎉 **Thanks for contributing!**\nAPI Key Added successfully.\nUser: `{api_user}`")
+        else:
+            await message.reply_text(f"✅ **API Added!**\nUser: `{api_user}`")
 
+    # Check Stats (Sirf Owner dekh sakta hai ki kitni keys bachi hain)
     @app.on_message(filters.command("checkapi") & filters.private)
     async def check_api_stats(client, message):
         if message.from_user.id != int(OWNER_ID):
@@ -67,7 +78,7 @@ def register_antinsfw_handlers(app: Client):
             await message.reply_text("Usage: `/antinsfw on` or `/antinsfw off`")
 
     # ======================================================
-    # 3. SCANNER LOGIC (The Core)
+    # 3. SCANNER LOGIC (Core System)
     # ======================================================
 
     async def scan_image(image_bytes):
@@ -131,54 +142,49 @@ def register_antinsfw_handlers(app: Client):
             media = message.document
 
         if not media:
-            return # Scan layak kuch nahi mila
+            return 
 
-        # 3. Download to RAM (BytesIO)
+        # 3. Download to RAM
         try:
-            # Sirf 2MB se choti file/thumb hi download karo to save RAM
+            # 2MB check
             if media.file_size > 2 * 1024 * 1024: 
                 return 
 
             file_stream = io.BytesIO()
             await client.download_media(media.file_id, file_ref=media.file_ref, file_name=file_stream)
-            file_stream.seek(0) # Reset pointer
+            file_stream.seek(0)
             
-            # 4. Send to SightEngine
+            # 4. Scan
             result = await scan_image(file_stream)
             
             if not result:
-                return # API error or empty
+                return 
 
-            # 5. Check Score (Threshold > 0.60 aka 60%)
+            # 5. Check Score (Threshold > 60%)
             nsfw_score = 0
             
-            # Nudity Check
             if 'nudity' in result:
-                # Raw, Safe, Partial. We check unsafe categories.
                 raw = result['nudity'].get('raw', 0)
                 partial = result['nudity'].get('partial', 0)
                 nsfw_score = max(raw, partial)
             
-            # Weapon/Gore Check
             if 'weapon' in result and result['weapon'] > 0.8:
                 nsfw_score = max(nsfw_score, result['weapon'])
             if 'gore' in result and result['gore'] > 0.8:
                 nsfw_score = max(nsfw_score, result['gore'])
 
-            # 6. ACTION: If NSFW Detected
-            if nsfw_score > 0.60: # 60% se zyada NSFW
+            # 6. ACTION
+            if nsfw_score > 0.60:
                 percent = int(nsfw_score * 100)
                 
-                # Delete Message
                 try: await message.delete()
-                except: pass # Rights issue
+                except: pass 
                 
-                # Warning Message
                 text = (
                     f"⚠️ **NSFW Content Detected!**\n"
-                    f"Hey {message.from_user.mention}, your message contained {percent}% NSFW content (Nudity/Violence).\n"
-                    f"It has been deleted to protect this group.\n\n"
-                    f"⏳ **This warning will auto-delete in 60 seconds.**"
+                    f"Hey {message.from_user.mention}, your message contained {percent}% NSFW content.\n"
+                    f"Action: **Deleted** 🗑️\n\n"
+                    f"⏳ **This warning auto-deletes in 60s.**"
                 )
                 
                 buttons = InlineKeyboardMarkup([
@@ -188,12 +194,10 @@ def register_antinsfw_handlers(app: Client):
                 
                 warn_msg = await message.reply_text(text, reply_markup=buttons)
                 
-                # Auto-Delete Warning
                 await asyncio.sleep(60)
                 try: await warn_msg.delete()
                 except: pass
 
-        except Exception as e:
-            # Download fail or other error
+        except Exception:
             pass
-        
+            
