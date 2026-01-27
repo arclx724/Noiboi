@@ -20,6 +20,8 @@ def register_antinsfw_handlers(app: Client):
     # Combined Handler for /addapi (Owner) and /addamthy (Public)
     @app.on_message(filters.command(["addapi", "addamthy"]) & filters.private)
     async def add_nsfw_api_cmd(client, message):
+        print("DEBUG: Command received!") # <--- DEBUG LINE 1
+        
         command_used = message.command[0] # Check konsa command use hua
         
         # LOGIC: Agar /addapi hai, toh Owner check karo
@@ -38,9 +40,18 @@ def register_antinsfw_handlers(app: Client):
         api_user = message.command[1]
         api_secret = message.command[2]
         
-        # Database mein add karo
-        await db.add_nsfw_api(api_user, api_secret)
+        print(f"DEBUG: Trying to save {api_user}...") # <--- DEBUG LINE 2
+
+        try:
+            # Database mein add karo
+            await db.add_nsfw_api(api_user, api_secret)
+            print("DEBUG: Saved successfully!") # <--- DEBUG LINE 3
+        except Exception as e:
+            print(f"DEBUG ERROR: {e}") # <--- ERROR CATCHING
+            await message.reply_text(f"⚠️ **Database Error:** {e}")
+            return
         
+        # Success Message
         if command_used == "addamthy":
             await message.reply_text(f"🎉 **Thanks for contributing!**\nAPI Key Added successfully.\nUser: `{api_user}`")
         else:
