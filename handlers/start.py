@@ -138,8 +138,8 @@ Choose a category below to explore commands:
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
-    @app.on_callback_query(filters.regex("No-Bots"))
-    async def bots_callback(client, callback_query):
+    @app.on_callback_query(filters.regex("anti-nsfw"))
+    async def nsfw_callback(client, callback_query):
         text = "🔞 *Smart Anti-NSFW System**\n\n"
         "This system uses advanced **AI** to detect and auto-delete Nudity, Gore, and Violence from your group.\n"
         "It scans **Photos, Stickers, and Videos** instantly.\n\n"
