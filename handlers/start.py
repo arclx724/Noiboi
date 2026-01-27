@@ -60,16 +60,17 @@ Choose a category below to explore commands:
 """
         buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("⌂ Greetings ⌂", callback_data="greetings"),
-                InlineKeyboardButton("⌂ Clean Service ⌂", callback_data="Clean-Service"),
+                InlineKeyboardButton("Greetings", callback_data="greetings"),
+                InlineKeyboardButton("Clean Service", callback_data="Clean-Service"),
             ],
             [
-                InlineKeyboardButton("⌂ Locks ⌂", callback_data="locks"),
-                InlineKeyboardButton("⌂ Media Guardian ⌂", callback_data="Media-Guardian"),
-                InlineKeyboardButton("⌂ No Bots ⌂", callback_data="No-Bots"),
+                InlineKeyboardButton("Locks", callback_data="locks"),
+                InlineKeyboardButton("Media Guardian", callback_data="Media-Guardian"),
+                InlineKeyboardButton("No Bots", callback_data="No-Bots"),
+                InlineKeyboardButton("Anti NSFW", callback_data="anti-nafw"),
             ],
-            [InlineKeyboardButton("⌂ Moderation ⌂", callback_data="moderation")],
-            [InlineKeyboardButton("⌂ Anti-Cheater ⌂", callback_data="anti-cheater")],
+            [InlineKeyboardButton("Moderation", callback_data="moderation")],
+            [InlineKeyboardButton("Anti Cheater", callback_data="anti-cheater")],
             [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
         ])
 
@@ -118,21 +119,38 @@ Choose a category below to explore commands:
 
     @app.on_callback_query(filters.regex("locks"))
     async def locks_callback(client, callback_query):
-        text = "🔐 **Lock System Guide**\n\n**Commands:**\n- /lock <type>: Lock a specific feature.\n- /unlock <type>: Unlock a specific feature.\n- /locks: View current group settings.\n\n**Available Types:**\nurl, sticker, media, username, forward\n\n**Example:**\n/lock url → Blocks all links.\n/unlock sticker → Allows stickers again.\n\n⚠️ **Note:** Admins are not affected by these locks."
+        text = "🔐 **Lock System Guide**\n\n**Commands:**\n- `/lock` <type>: Lock a specific feature.\n- `/unlock` <type>: Unlock a specific feature.\n- `/locks`: View current group settings.\n\n**Available Types:**\n`url`, `sticker`, `media`, `username`, `forward`\n\n**Example:**\n`/lock url` → Blocks all links.\n/unlock sticker → Allows stickers again.\n\n⚠️ **Note:** Admins are not affected by these locks."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("Media-Guardian"))
     async def media_callback(client, callback_query):
-        text = "**Set auto-delete delay media using:**\n\n /setdelay on/off\n /setdelay <value> [s/m/h]\n\n **Examples:**\n /setdelay 10 s → 10 seconds\n /setdelay 5 m  → 5 minutes\n /setdelay 1 h  → 1 hour (max 24h)"
+        text = "**Set auto-delete delay media using:**\n\n `/setdelay on/off`\n `/setdelay` <value> [s/m/h]\n\n **Examples:**\n `/setdelay 10 s` → `10 seconds`\n `/setdelay 5 m`  → 5 minutes\n `/setdelay 1 h`  → 1 hour (max 24h)"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("No-Bots"))
     async def bots_callback(client, callback_query):
-        text = "🤖 No Bots System\n\n- /nobots on\n- /nobots off"
+        text = "🤖 No Bots System\n\n- `/nobots on`\n- '/nobots off'"
+        buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
+        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        await callback_query.answer()
+
+    @app.on_callback_query(filters.regex("No-Bots"))
+    async def bots_callback(client, callback_query):
+        text = ""🔞 *Smart Anti-NSFW System**\n\n"
+        "This system uses advanced **AI** to detect and auto-delete Nudity, Gore, and Violence from your group.\n"
+        "It scans **Photos, Stickers, and Videos** instantly.\n\n"
+        "**👮‍♂️ Admin Commands:**\n"
+        "• `/antinsfw on` - Enable protection.\n"
+        "• `/antinsfw off` - Disable protection.\n\n"
+        "**🔑 API Management (Owner Only):**\n"
+        "• `/addapi <user> <secret>` - Add your API Key (Owner Only).\n"
+        #"• `/addamthy <user> <secret>` - Donate an API Key (Public).\n"
+        "• `/checkapi` - Check active keys & remaining scans (Owner Only).\n\n"
+        #"ℹ️ _The bot automatically rotates keys and removes expired ones._"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
@@ -147,7 +165,7 @@ Choose a category below to explore commands:
     @app.on_callback_query(filters.regex("Clean-Service"))
     async def clean_service_callback(client, callback_query):
         # Backticks removed here: `/command` -> /command
-        text = "🧹 **Clean Service**\n\n- /noevents on/off: Filter 'X joined or left the group' notifications.\n- /nolinks on/off: Filter messages with links, mentions, forwards, or reply markup.\n- /noforwards on/off: Filter messages with a mention of any participants.\n- /nocontacts on/off: Filter messages with contact numbers of users.\n- /nolocations on/off: Filter messages containing user locations.\n- /nocommands on/off: Filter commands from group members.\n- /nohashtags on/off: Filter messages containing hashtags.\n- /antiflood on/off: Limit frequent messages (3 per 20 seconds)."
+        text = "🧹 **Clean Service**\n\n- `/noevents on/off`: Filter 'X joined or left the group' notifications.\n- `/nolinks on/off`: Filter messages with links, mentions, forwards, or reply markup.\n- `/noforwards on/off`: Filter messages with a mention of any participants.\n- `/nocontacts on/off`: Filter messages with contact numbers of users.\n- `/nolocations on/off`: Filter messages containing user locations.\n- `/nocommands on/off`: Filter commands from group members.\n- `/nohashtags on/off`: Filter messages containing hashtags.\n- `/antiflood on/off`: Limit frequent messages (3 per 20 seconds)."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
