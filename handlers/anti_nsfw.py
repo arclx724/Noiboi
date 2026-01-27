@@ -75,7 +75,7 @@ def register_antinsfw_handlers(app: Client):
                 await message.reply_text("😌 **Anti-NSFW Disabled!**")
 
     # ======================================================
-    # 3. SCANNER LOGIC (With DEBUG PRINTS)
+    # 3. SCANNER LOGIC (FIXED)
     # ======================================================
 
     async def scan_image(image_bytes):
@@ -96,7 +96,7 @@ def register_antinsfw_handlers(app: Client):
                 async with session.post(API_URL, data=data) as resp:
                     result = await resp.json()
             
-            print(f"DEBUG: API Raw Result: {result}") # <--- YEH IMPORTANT HAI
+            print(f"DEBUG: API Raw Result: {result}") 
 
             if result['status'] == 'failure':
                 error_code = result.get('error', {}).get('code')
@@ -131,7 +131,7 @@ def register_antinsfw_handlers(app: Client):
         elif message.sticker:
             print(f"DEBUG: Media is STICKER (Animated: {message.sticker.is_animated}, Video: {message.sticker.is_video})")
             if message.sticker.thumbs:
-                # FIX: Use [-1] for largest thumbnail (Better scanning)
+                # FIX: Use [-1] for largest thumbnail
                 media = message.sticker.thumbs[-1] 
                 print("DEBUG: Sticker Thumbnail Found (Scanning thumb)")
             elif not message.sticker.is_animated and not message.sticker.is_video:
@@ -160,7 +160,11 @@ def register_antinsfw_handlers(app: Client):
 
             print("DEBUG: Downloading media...")
             file_stream = io.BytesIO()
-            await client.download_media(media.file_id, file_ref=media.file_ref, file_name=file_stream)
+            
+            # --- FIX APPLIED HERE ---
+            # Humne 'file_ref' hata diya aur direct 'media' object pass kiya
+            await client.download_media(media, file_name=file_stream)
+            
             file_stream.seek(0)
             print("DEBUG: Download complete. Scanning...")
             
