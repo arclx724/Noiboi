@@ -2,30 +2,36 @@ import requests
 import re
 import unicodedata
 from pyrogram import Client, filters
-from pyrogram.enums import ChatMemberStatus
+from pyrogram.enums import ChatMemberStatus, MessageEntityType
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import OPENROUTER_API_KEY, BOT_USERNAME, SUPPORT_GROUP
 import db
 
 # --- CONFIGURATION ---
-# Regex to find links (t.me, telegram.me, http://, etc.)
-LINK_REGEX = r"(https?://|www\.|t\.me/|telegram\.me/|tg://openmessage)"
+# Catch t.me, telegram.me, and standard http links
+LINK_REGEX = r"(https?://|www\.|t\.me|telegram\.me|tg://)"
 MENTION_REGEX = r"@"
 
 def normalize_text(text):
     """
-    Fancy fonts (𝐇𝐞𝐥𝐥𝐨) ko normal text (Hello) mein convert karta hai.
+    Aggressive cleaning of fancy fonts to standard English.
     """
     if not text: return ""
-    return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    
+    # 1. Standard Unicode Normalization
+    normalized = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    
+    # 2. Fallback: Agar upar wala fail ho jaye, toh manually check karo
+    # (Example: Spammers use specific ranges for bold/italic)
+    return normalized.lower()
 
 def check_promo_with_ai(text):
     """
-    OpenRouter AI se check karega ki message Promotion hai ya nahi.
+    OpenRouter AI check.
     """
     try:
-        # Send normalized text to AI for better understanding
         clean_text = normalize_text(text)
+        print(f"DEBUG: AI Checking text: {clean_text[:50]}...") # Log 1
         
         response = requests.post(
             url="https://openrouter.ai/api/v1/chat/completions",
@@ -51,20 +57,18 @@ def check_promo_with_ai(text):
         )
         
         if response.status_code == 200:
-            return "YES" in response.json()['choices'][0]['message']['content'].strip().upper()
+            result = response.json()['choices'][0]['message']['content'].strip().upper()
+            print(f"DEBUG: AI Result: {result}") # Log 2
+            return "YES" in result
         return False
-    except:
+    except Exception as e:
+        print(f"DEBUG: AI Error: {e}")
         return False
 
 def register_antipromo_handlers(app: Client):
 
-    # ======================================================
-    # 1. ENABLE / DISABLE COMMAND (/nopromo)
-    # ======================================================
-    
     @app.on_message(filters.command("nopromo") & filters.group)
     async def nopromo_switch(client, message):
-        # Admin Check
         user = await client.get_chat_member(message.chat.id, message.from_user.id)
         if user.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
             await message.reply_text("You need to be an admin to do this.")
@@ -74,7 +78,7 @@ def register_antipromo_handlers(app: Client):
             arg = message.command[1].lower()
             if arg == "on":
                 await db.set_antipromo_status(message.chat.id, True)
-                await message.reply_text("⛔ **No-Promo System Enabled!**\n- Bots forwarding messages will be deleted.\n- Ad messages will be auto-deleted.")
+                await message.reply_text("⛔ **No-Promo System Enabled!**\nScanning for bots and ads...")
             elif arg == "off":
                 await db.set_antipromo_status(message.chat.id, False)
                 await message.reply_text("✅ **No-Promo System Disabled!**")
@@ -82,49 +86,58 @@ def register_antipromo_handlers(app: Client):
             await message.reply_text("Usage: `/nopromo on` or `/nopromo off`")
 
     # ======================================================
-    # 2. PROMOTION & BOT WATCHER
+    # MAIN WATCHER
     # ======================================================
     
     @app.on_message(filters.group, group=40)
     async def promo_detector(client, message):
         chat_id = message.chat.id
         
-        # 1. Check if Enabled
         if not await db.is_antipromo_enabled(chat_id):
             return
 
-        # 2. Check Bot Permissions (Pre-check)
+        # --- DEBUGGING PRINTS (Check your terminal when spam comes) ---
+        # Yeh batayega ki bot message dekh raha hai ya nahi
+        
+        # 1. Skip if message is empty
+        raw_text = message.text or message.caption or ""
+        if not raw_text: return
+
+        # 2. Check Permissions
         try:
             me = await client.get_chat_member(chat_id, "me")
-            if me.status != ChatMemberStatus.ADMINISTRATOR or not me.privileges.can_delete_messages:
-                return # Power nahi hai toh kuch nahi kar sakte
+            if not me.privileges.can_delete_messages:
+                # print("DEBUG: I don't have delete permission!")
+                return
         except:
             return
 
+        clean_text = normalize_text(raw_text)
         is_guilty = False
         reason = ""
 
-        # Normalize Text (Fancy Font Fix)
-        raw_text = message.text or message.caption or ""
-        clean_text = normalize_text(raw_text).lower()
-
-        # --- CASE A: SENDER IS A BOT ---
+        # --- CHECK 1: BOT DETECTION ---
         if message.from_user and message.from_user.is_bot:
-            # Rule: Agar Bot ne koi bhi message FORWARD kiya -> DELETE
-            if message.forward_date or message.forward_from or message.forward_from_chat:
+            print(f"DEBUG: Bot Message Detected from {message.from_user.first_name}")
+            
+            # Rule 1: Link Check
+            if re.search(LINK_REGEX, raw_text):
+                is_guilty = True
+                reason = "Bot sent a Link"
+            
+            # Rule 2: Keywords (Join, DM, etc.)
+            elif "join" in clean_text or "dm me" in clean_text or "click here" in clean_text:
+                is_guilty = True
+                reason = "Bot sent Ad keywords"
+            
+            # Rule 3: Forwarding
+            elif message.forward_date or message.forward_from:
                 is_guilty = True
                 reason = "Bot Forwarding"
-            
-            # Rule: Agar Bot ne Link/Promotion bheja -> DELETE
-            # (Check normalized text for 'join', 'dm', etc.)
-            elif raw_text:
-                if re.search(LINK_REGEX, raw_text) or "join" in clean_text or "dm me" in clean_text:
-                    is_guilty = True
-                    reason = "Bot Promotion"
 
-        # --- CASE B: SENDER IS A HUMAN ---
+        # --- CHECK 2: HUMAN DETECTION ---
         elif message.from_user and not message.from_user.is_bot:
-            # Admins ko skip karo
+            # Skip Admins
             try:
                 user = await client.get_chat_member(chat_id, message.from_user.id)
                 if user.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
@@ -132,31 +145,34 @@ def register_antipromo_handlers(app: Client):
             except:
                 pass
 
-            if not raw_text: return
-
-            # AI Check sirf tab kare jab Link ya @ Mention ho
-            if re.search(LINK_REGEX, raw_text) or re.search(MENTION_REGEX, raw_text):
+            # Check if text contains Link or Mention
+            has_link = re.search(LINK_REGEX, raw_text)
+            has_mention = re.search(MENTION_REGEX, raw_text)
+            
+            # Also check text entities (Hyperlinks hidden in text)
+            if message.entities:
+                for ent in message.entities:
+                    if ent.type in [MessageEntityType.URL, MessageEntityType.TEXT_LINK, MessageEntityType.MENTION]:
+                        has_link = True
+            
+            if has_link or has_mention:
+                print(f"DEBUG: Checking potential human spam from {message.from_user.first_name}")
                 if check_promo_with_ai(raw_text):
                     is_guilty = True
-                    reason = "User Promotion"
+                    reason = "AI detected Promotion"
 
         # --- ACTION: DELETE ---
         if is_guilty:
+            print(f"DEBUG: DELETING Message! Reason: {reason}")
             try:
                 await message.delete()
                 
-                # Sirf Humans ke liye Warning bhejo
                 if not message.from_user.is_bot:
-                    warn_text = (
-                        f"⛔ **No Promotions!**\n"
-                        f"Hey {message.from_user.mention}, ads allowed nahi hain!\n"
-                        f"Action: **Deleted** 🗑️"
-                    )
+                    warn_text = f"⛔ **No Promotions!**\nAction: **Deleted** 🗑️"
                     await message.reply_text(warn_text)
                     
             except Exception as e:
-                # Agar Bot Admin hai aur delete nahi ho raha
-                print(f"DEBUG: Delete Failed (Shayad Admin Bot hai): {e}")
-                # Optional: Agar Bot message delete nahi kar paya toh report kare
-                # await message.reply_text("⚠️ I detected a spam bot but I can't delete its message! It might be an Admin.")
+                print(f"DEBUG: DELETE FAILED: {e}")
+                # AGAR YE ERROR AATA HAI: "MESSAGE_DELETE_FORBIDDEN" 
+                # TOH ISKA MATLAB WO SPAMMER BOT 'ADMIN' HAI.
                 
