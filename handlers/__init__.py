@@ -5,7 +5,8 @@ from .anti_nuke import register_anti_nuke
 from .media_delete import register_media_delete_handlers
 from .anti_bots import register_antibot_handlers
 from .anti_edit import register_antiedit_handlers
-from .cleaner import register_cleaner_handlers  # <--- NEW IMPORT
+from .cleaner import register_cleaner_handlers
+from .anti_nsfw import register_antinsfw_handlers  # <--- NEW IMPORT
 
 def register_all_handlers(app):
     register_handlers(app)
@@ -15,8 +16,10 @@ def register_all_handlers(app):
     register_media_delete_handlers(app)
     register_antibot_handlers(app)
     register_antiedit_handlers(app)
+    register_cleaner_handlers(app)
     
-    # Register Cleaner (NoCommands & NoEvents)
-    register_cleaner_handlers(app)  # <--- NEW CALL
+    # Register Anti-NSFW
+    register_antinsfw_handlers(app)  # <--- NEW CALL
     
-    print("✅ All Handlers Loaded: Start, Group, Abuse, Nuke, Media, Anti-Bot, Edit, Cleaner")
+    print("✅ All Handlers Loaded: Start, Group, Abuse, Nuke, Media, Anti-Bot, Edit, Cleaner, NSFW")
+    
