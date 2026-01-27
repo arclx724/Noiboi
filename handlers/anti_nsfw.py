@@ -11,7 +11,6 @@ import db
 API_URL = "https://api.sightengine.com/1.0/check.json"
 TEMP_DOWNLOAD_PATH = "downloads/" 
 
-# Create download folder if it doesn't exist
 if not os.path.exists(TEMP_DOWNLOAD_PATH):
     os.makedirs(TEMP_DOWNLOAD_PATH)
 
@@ -25,7 +24,6 @@ def register_antinsfw_handlers(app: Client):
     async def add_nsfw_api_cmd(client, message):
         command_used = message.command[0]
         
-        # Security: Only Owner can use /addapi
         if command_used == "addapi":
             if message.from_user.id != int(OWNER_ID):
                 await message.reply_text("❌ **Access Denied!** Only the Owner can use this command.")
@@ -63,24 +61,26 @@ def register_antinsfw_handlers(app: Client):
         )
 
     # ======================================================
-    # 2. GROUP SETTINGS (With Error Messages)
+    # 2. GROUP SETTINGS (With Explicit Checks)
     # ======================================================
 
     @app.on_message(filters.command("antinsfw") & filters.group)
     async def antinsfw_switch(client, message):
-        # 1. USER CHECK: Is the user an Admin?
+        # 1. USER PERMISSION CHECK
         user = await client.get_chat_member(message.chat.id, message.from_user.id)
         if user.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
             await message.reply_text("You need to be an admin to do this.")
             return
 
-        # 2. BOT CHECK: Is the bot an Admin?
-        bot_member = await client.get_chat_member(message.chat.id, (await client.get_me()).id)
-        if bot_member.status != ChatMemberStatus.ADMINISTRATOR or (bot_member.privileges and not bot_member.privileges.can_delete_messages):
+        # 2. BOT PERMISSION CHECK (Explicit)
+        # We check "me" (the bot itself)
+        me = await client.get_chat_member(message.chat.id, "me")
+        
+        if me.status != ChatMemberStatus.ADMINISTRATOR or not me.privileges.can_delete_messages:
             await message.reply_text("Please give me permission to delete messages..!!!")
             return
 
-        # 3. COMMAND EXECUTION
+        # 3. COMMAND LOGIC
         if len(message.command) > 1:
             arg = message.command[1].lower()
             if arg == "on":
@@ -99,7 +99,7 @@ def register_antinsfw_handlers(app: Client):
     async def scan_file_on_disk(file_path):
         api_data = await db.get_nsfw_api()
         if not api_data:
-            print("DEBUG: No API Keys available! Please add keys using /addapi")
+            print("DEBUG: No API Keys available!")
             return None 
 
         try:
@@ -133,11 +133,9 @@ def register_antinsfw_handlers(app: Client):
     async def nsfw_watcher(client, message):
         chat_id = message.chat.id
         
-        # Check if Enabled
         if not await db.is_antinsfw_enabled(chat_id):
             return
 
-        # Identify Media
         media = None
         if message.photo:
             media = message.photo
@@ -160,21 +158,17 @@ def register_antinsfw_handlers(app: Client):
         file_path = os.path.join(TEMP_DOWNLOAD_PATH, f"scan_{chat_id}_{message.id}.jpg")
 
         try:
-            # Size Check (5MB)
             if media.file_size > 5 * 1024 * 1024: return 
 
-            # Download
             await client.download_media(media, file_name=file_path)
             if not os.path.exists(file_path): return
 
-            # Scan
             result = await scan_file_on_disk(file_path)
             try: os.remove(file_path)
             except: pass
 
             if not result: return 
 
-            # Parse Score
             nsfw_score = 0
             if 'nudity' in result:
                 raw = result['nudity'].get('raw', 0)
@@ -197,19 +191,33 @@ def register_antinsfw_handlers(app: Client):
                 elif isinstance(g, float) or isinstance(g, int):
                     nsfw_score = max(nsfw_score, g)
 
-            # --- ACTION LOGIC (Try-Except Method) ---
+            # --- CRITICAL ACTION SECTION ---
             if nsfw_score > 0.60:
                 percent = int(nsfw_score * 100)
-                
-                # Method: Try to delete, if fail -> Reply Error
+
+                # 1. HARD PERMISSION CHECK (The Logic Fix)
+                # Before trying to delete, we explicitly ask Telegram: "Can I delete?"
+                try:
+                    me = await client.get_chat_member(chat_id, "me")
+                    
+                    if me.status != ChatMemberStatus.ADMINISTRATOR or not me.privileges.can_delete_messages:
+                        # If I am not admin OR I don't have delete rights
+                        await message.reply_text("Please give me permission to delete messages..!!!")
+                        return # Stop here, don't try to delete
+                except Exception:
+                    # If we can't even check permissions (very rare), reply anyway
+                    await message.reply_text("Please give me permission to delete messages..!!!")
+                    return
+
+                # 2. DELETE (Now we know we have rights, but still wrap in try-except)
                 try: 
                     await message.delete()
                 except Exception:
-                    # ✅ THIS WILL 100% RUN IF BOT CANNOT DELETE
+                    # Fallback just in case something else blocks it (like User is Admin)
                     await message.reply_text("Please give me permission to delete messages..!!!")
                     return 
                 
-                # If delete was successful, send the warning
+                # 3. SEND WARNING
                 text = (
                     f"⚠️ **NSFW Detected!**\n"
                     f"Hey {message.from_user.mention}, NSFW content is not allowed here!\n"
@@ -233,4 +241,4 @@ def register_antinsfw_handlers(app: Client):
             if os.path.exists(file_path):
                 try: os.remove(file_path)
                 except: pass
-                
+                    
