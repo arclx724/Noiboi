@@ -148,12 +148,13 @@ Choose a category below to explore commands:
             "**👮‍♂️ Admin Commands:**\n"
             "• `/antinsfw on` - Enable protection.\n"
             "• `/antinsfw off` - Disable protection.\n\n"
-            "**🔑 API Management (SightEngine):**\n"
-            "• `/addapi <user> <secret>` - Add your API Key (Owner Only).\n"
-            "• `/addamthy <user> <secret>` - Donate an API Key (Public).\n"
-            "• `/checkapi` - Check active keys & remaining scans (Owner Only).\n\n"
-            "ℹ️ _The bot automatically rotates keys and removes expired ones._"
+            "**🔑 API Management (Sudo Only):**\n"
+            "• `/addapi <user> <secret>` - Add your API Key (Sudo Only).\n"
+            #"• `/addamthy <user> <secret>` - Donate an API Key (Public).\n"
+            "• `/checkapi` - Check active keys & remaining scans (Sudo Only).\n\n"
         )
+            #"ℹ️ _The bot automatically rotates keys and removes expired ones._"
+        
         
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         
