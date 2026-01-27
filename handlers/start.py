@@ -183,7 +183,7 @@ Choose a category below to explore commands:
 
     @app.on_callback_query(filters.regex("anti-cheater"))
     async def anti_cheater_callback(client, callback_query):
-        text = "**Anti-Cheater**\n\n - Works automatically — no commands needed\n\n 🚨 **The bot tracks admin actions.**\n - If an admin kicks or bans more than 10 users in 24 hours, they are auto-demoted.\n\n - Limits reset automatically every 24 hours.\n\n 🔒 **Only admins promoted by this bot can be auto-demoted.**\n Use /promote and give the bot Add Admin permission.\n\n 🛡️ Protects your group from fake or abusive admins."
+        text = "**Anti-Cheater**\n\n - Works automatically — no commands needed\n\n 🚨 **The bot tracks admin actions.**\n - If an admin kicks or bans more than 10 users in 24 hours, they are auto-demoted.\n\n - Limits reset automatically every 24 hours.\n\n 🔒 **Only admins promoted by this bot can be auto-demoted.**\n Use `/promote` and give the bot Add Admin permission.\n\n 🛡️ Protects your group from fake or abusive admins."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
