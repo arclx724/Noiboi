@@ -63,31 +63,24 @@ def register_antinsfw_handlers(app: Client):
         )
 
     # ======================================================
-    # 2. GROUP SETTINGS (Explicit Rights Check)
+    # 2. GROUP SETTINGS (With Error Messages)
     # ======================================================
 
     @app.on_message(filters.command("antinsfw") & filters.group)
     async def antinsfw_switch(client, message):
-        # --- 1. USER PERMISSION CHECK ---
+        # 1. USER CHECK: Is the user an Admin?
         user = await client.get_chat_member(message.chat.id, message.from_user.id)
         if user.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
             await message.reply_text("You need to be an admin to do this.")
             return
 
-        # --- 2. BOT PERMISSION CHECK (Explicit) ---
-        bot_id = (await client.get_me()).id
-        bot_member = await client.get_chat_member(message.chat.id, bot_id)
-        
-        # Logic: If Bot is NOT Admin OR (Bot is Admin BUT doesn't have Delete Rights)
-        if bot_member.status != ChatMemberStatus.ADMINISTRATOR:
-            await message.reply_text("Please give me permission to delete messages..!!!")
-            return
-            
-        if not bot_member.privileges or not bot_member.privileges.can_delete_messages:
+        # 2. BOT CHECK: Is the bot an Admin?
+        bot_member = await client.get_chat_member(message.chat.id, (await client.get_me()).id)
+        if bot_member.status != ChatMemberStatus.ADMINISTRATOR or (bot_member.privileges and not bot_member.privileges.can_delete_messages):
             await message.reply_text("Please give me permission to delete messages..!!!")
             return
 
-        # --- 3. COMMAND LOGIC ---
+        # 3. COMMAND EXECUTION
         if len(message.command) > 1:
             arg = message.command[1].lower()
             if arg == "on":
@@ -204,30 +197,19 @@ def register_antinsfw_handlers(app: Client):
                 elif isinstance(g, float) or isinstance(g, int):
                     nsfw_score = max(nsfw_score, g)
 
-            # --- ACTION LOGIC (Action se pehle permission check) ---
+            # --- ACTION LOGIC (Try-Except Method) ---
             if nsfw_score > 0.60:
                 percent = int(nsfw_score * 100)
                 
-                # 1. PRE-CHECK: Do I have rights?
-                bot_id = (await client.get_me()).id
-                bot_member = await client.get_chat_member(chat_id, bot_id)
-                
-                # If Bot is NOT Admin OR Doesn't have Delete Rights
-                if bot_member.status != ChatMemberStatus.ADMINISTRATOR or \
-                   (bot_member.privileges and not bot_member.privileges.can_delete_messages):
-                    # GUARANTEED RESPONSE HERE
-                    await message.reply_text("Please give me permission to delete messages..!!!")
-                    return
-
-                # 2. DELETE (Safe to delete now)
+                # Method: Try to delete, if fail -> Reply Error
                 try: 
                     await message.delete()
-                except Exception as e:
-                    # Fallback if weird error occurs
-                    print(f"DEBUG: Delete failed despite rights: {e}")
+                except Exception:
+                    # ✅ THIS WILL 100% RUN IF BOT CANNOT DELETE
+                    await message.reply_text("Please give me permission to delete messages..!!!")
                     return 
                 
-                # 3. WARNING MESSAGE
+                # If delete was successful, send the warning
                 text = (
                     f"⚠️ **NSFW Detected!**\n"
                     f"Hey {message.from_user.mention}, NSFW content is not allowed here!\n"
@@ -251,4 +233,4 @@ def register_antinsfw_handlers(app: Client):
             if os.path.exists(file_path):
                 try: os.remove(file_path)
                 except: pass
-                    
+                
