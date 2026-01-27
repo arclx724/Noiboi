@@ -62,12 +62,12 @@ Choose a category below to explore commands:
             [
                 InlineKeyboardButton("Greetings", callback_data="greetings"),
                 InlineKeyboardButton("Clean Service", callback_data="Clean-Service"),
+                InlineKeyboardButton("Anti NSFW", callback_data="anti-nsfw"),
             ],
             [
                 InlineKeyboardButton("Locks", callback_data="locks"),
                 InlineKeyboardButton("Media Guardian", callback_data="Media-Guardian"),
                 InlineKeyboardButton("No Bots", callback_data="No-Bots"),
-                InlineKeyboardButton("Anti NSFW", callback_data="anti-nafw"),
             ],
             [InlineKeyboardButton("Moderation", callback_data="moderation")],
             [InlineKeyboardButton("Anti Cheater", callback_data="anti-cheater")],
