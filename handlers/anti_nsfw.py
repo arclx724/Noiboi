@@ -1,7 +1,6 @@
 import os
-import io
-import asyncio
 import aiohttp
+import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ChatMemberStatus
@@ -10,22 +9,26 @@ import db
 
 # SightEngine URL
 API_URL = "https://api.sightengine.com/1.0/check.json"
+TEMP_DOWNLOAD_PATH = "downloads/" # Yahan files temporarily save hongi
+
+# Folder bana lete hain agar nahi hai to
+if not os.path.exists(TEMP_DOWNLOAD_PATH):
+    os.makedirs(TEMP_DOWNLOAD_PATH)
 
 def register_antinsfw_handlers(app: Client):
 
     # ======================================================
-    # 1. API MANAGEMENT
+    # 1. API MANAGEMENT (Add/Check Keys)
     # ======================================================
 
     @app.on_message(filters.command(["addapi", "addamthy"]) & filters.private)
     async def add_nsfw_api_cmd(client, message):
-        print("DEBUG: Command received!") 
-        
         command_used = message.command[0]
         
+        # Owner Check for /addapi
         if command_used == "addapi":
             if message.from_user.id != int(OWNER_ID):
-                await message.reply_text("❌ Access Denied!")
+                await message.reply_text("❌ Access Denied! Sirf Owner use kar sakta hai.")
                 return
 
         if len(message.command) != 3:
@@ -37,142 +40,144 @@ def register_antinsfw_handlers(app: Client):
         
         try:
             await db.add_nsfw_api(api_user, api_secret)
-            print("DEBUG: Saved successfully!") 
+            if command_used == "addamthy":
+                await message.reply_text(f"🎉 **Thanks for helping!**\nAPI Key Added.")
+            else:
+                await message.reply_text(f"✅ **API Added Successfully!**")
         except Exception as e:
-            print(f"DEBUG ERROR: {e}") 
             await message.reply_text(f"Error: {e}")
-            return
-
-        await message.reply_text(f"✅ **API Added!**")
 
     @app.on_message(filters.command("checkapi") & filters.private)
     async def check_api_stats(client, message):
         if message.from_user.id != int(OWNER_ID):
             return
         count = await db.get_all_nsfw_apis_count()
-        await message.reply_text(f"📊 **Total APIs:** `{count}`")
+        await message.reply_text(f"📊 **Total Active APIs:** `{count}`")
 
     # ======================================================
-    # 2. GROUP COMMANDS
+    # 2. GROUP SETTINGS (On/Off)
     # ======================================================
 
     @app.on_message(filters.command("antinsfw") & filters.group)
     async def antinsfw_switch(client, message):
         user = await client.get_chat_member(message.chat.id, message.from_user.id)
         if user.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-            await message.reply_text("❌ Access Denied!")
+            await message.reply_text("❌ Sirf Admins ye command use kar sakte hain!")
             return
 
         if len(message.command) > 1:
             arg = message.command[1].lower()
             if arg == "on":
                 await db.set_antinsfw_status(message.chat.id, True)
-                await message.reply_text("🔞 **Anti-NSFW Enabled!**")
+                await message.reply_text("🔞 **Anti-NSFW System Enabled!**\nAb gandi photos aur stickers delete ho jayenge.")
             elif arg == "off":
                 await db.set_antinsfw_status(message.chat.id, False)
-                await message.reply_text("😌 **Anti-NSFW Disabled!**")
+                await message.reply_text("😌 **Anti-NSFW System Disabled!**")
+        else:
+            await message.reply_text("Usage: `/antinsfw on` or `/antinsfw off`")
 
     # ======================================================
-    # 3. SCANNER LOGIC (FIXED MEMORY DOWNLOAD)
+    # 3. SCANNER LOGIC (Disk-Based: Stable)
     # ======================================================
 
-    async def scan_image(image_bytes):
+    async def scan_file_on_disk(file_path):
+        """File ko disk se padh kar scan karega"""
         api_data = await db.get_nsfw_api()
         if not api_data:
-            print("DEBUG: No API Keys found in DB!")
+            print("DEBUG: No API Keys available!")
             return None 
 
-        data = aiohttp.FormData()
-        data.add_field('models', 'nudity,wad,gore')
-        data.add_field('api_user', api_data['api_user'])
-        data.add_field('api_secret', api_data['api_secret'])
-        data.add_field('media', image_bytes, filename='image.jpg')
-
         try:
-            print(f"DEBUG: Sending to SightEngine using user: {api_data['api_user']}...")
-            async with aiohttp.ClientSession() as session:
-                async with session.post(API_URL, data=data) as resp:
-                    result = await resp.json()
+            data = aiohttp.FormData()
+            data.add_field('models', 'nudity,wad,gore')
+            data.add_field('api_user', api_data['api_user'])
+            data.add_field('api_secret', api_data['api_secret'])
             
-            print(f"DEBUG: API Raw Result: {result}")
+            # File open karke bhejo
+            with open(file_path, 'rb') as f:
+                data.add_field('media', f, filename='image.jpg')
 
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(API_URL, data=data) as resp:
+                        result = await resp.json()
+            
+            # API Error Handling (Limit/Invalid)
             if result['status'] == 'failure':
                 error_code = result.get('error', {}).get('code')
-                print(f"DEBUG: API Failure Code: {error_code}")
                 if error_code in [21, 23, 103]: 
-                    print("DEBUG: Removing bad API key...")
+                    print(f"DEBUG: Bad API found ({api_data['api_user']}), removing...")
                     await db.remove_nsfw_api(api_data['api_user'])
-                    return await scan_image(image_bytes) 
+                    return await scan_file_on_disk(file_path) # Retry with next key
                 return None
             
             return result
+
         except Exception as e:
-            print(f"DEBUG: Request Error: {e}")
+            print(f"DEBUG: Scan Error: {e}")
             return None
 
     @app.on_message(filters.group & (filters.photo | filters.video | filters.sticker | filters.document | filters.animation), group=35)
     async def nsfw_watcher(client, message):
         chat_id = message.chat.id
         
+        # Check enabled
         if not await db.is_antinsfw_enabled(chat_id):
             return
 
-        print(f"\n--- NEW MEDIA DETECTED in Chat {chat_id} ---")
-
-        # 1. Extract Media
+        # 1. Decide Media to Scan
         media = None
+        is_video_sticker = False
         
         if message.photo:
             media = message.photo
-            print("DEBUG: Media is PHOTO")
         elif message.sticker:
             if message.sticker.thumbs:
-                media = message.sticker.thumbs[-1] 
-                print("DEBUG: Sticker Thumbnail Found")
+                media = message.sticker.thumbs[-1] # Largest thumb
+                is_video_sticker = True
             elif not message.sticker.is_animated and not message.sticker.is_video:
                 media = message.sticker
-                print("DEBUG: Static Sticker Found")
-            else:
-                print("DEBUG: Sticker has NO thumbs and is Animated. Skipping.")
         elif message.video:
             if message.video.thumbs:
                 media = message.video.thumbs[-1]
-                print("DEBUG: Video Thumbnail Found")
+                is_video_sticker = True
         elif message.animation: 
             if message.animation.thumbs:
                 media = message.animation.thumbs[-1]
-                print("DEBUG: GIF Thumbnail Found")
+                is_video_sticker = True
+        elif message.document and "image" in message.document.mime_type:
+            media = message.document
 
         if not media:
-            print("DEBUG: No scannable media found. Exiting.")
             return 
 
-        # 2. Download (FIXED: in_memory=True)
+        # 2. Setup File Path
+        # Unique name banayenge taaki mix na ho
+        file_path = os.path.join(TEMP_DOWNLOAD_PATH, f"scan_{chat_id}_{message.id}.jpg")
+
         try:
+            # 2MB Limit check (Stickers/Thumbs usually small hote hain)
             if media.file_size > 2 * 1024 * 1024: 
-                print("DEBUG: File too big (>2MB). Skipping.")
                 return 
 
-            print("DEBUG: Downloading media to RAM...")
+            # 3. Download to Disk (Yeh fail nahi hota)
+            await client.download_media(media, file_name=file_path)
             
-            # --- FINAL FIX: Use in_memory=True ---
-            # This returns the raw bytes directly, bypassing file path issues
-            downloaded_bytes = await client.download_media(media, in_memory=True)
+            if not os.path.exists(file_path):
+                print("DEBUG: File download failed.")
+                return
+
+            # 4. Scan
+            result = await scan_file_on_disk(file_path)
             
-            # Convert bytes to stream for API
-            file_stream = io.BytesIO(downloaded_bytes)
-            file_stream.name = "sticker.jpg" 
-            
-            print("DEBUG: Download complete. Scanning...")
-            
-            # 3. Scan
-            result = await scan_image(file_stream)
-            
+            # 5. Cleanup (File delete karna zaroori hai)
+            try:
+                os.remove(file_path)
+            except: pass
+
             if not result:
-                print("DEBUG: Scan returned None.")
                 return 
 
-            # 4. Check Score
+            # 6. Check Scores
             nsfw_score = 0
             if 'nudity' in result:
                 raw = result['nudity'].get('raw', 0)
@@ -184,18 +189,17 @@ def register_antinsfw_handlers(app: Client):
             if 'gore' in result and result['gore'] > 0.8:
                 nsfw_score = max(nsfw_score, result['gore'])
 
-            print(f"DEBUG: FINAL NSFW SCORE: {nsfw_score}")
-
-            # 5. ACTION
+            # 7. Action: Delete if NSFW > 60%
             if nsfw_score > 0.60:
-                print("DEBUG: NSFW DETECTED! DELETING...")
                 percent = int(nsfw_score * 100)
                 
                 try: await message.delete()
-                except: print("DEBUG: Delete Failed (No Rights?)")
+                except: pass 
                 
                 text = (
-                    f"⚠️ **NSFW Detected!** ({percent}%)\n"
+                    f"⚠️ **NSFW Detected!**\n"
+                    f"Hey {message.from_user.mention}, ye content allowed nahi hai!\n"
+                    f"**Detection:** {percent}% Nudity/Gore\n"
                     f"Action: **Deleted** 🗑️"
                 )
                 
@@ -206,12 +210,15 @@ def register_antinsfw_handlers(app: Client):
                 
                 warn_msg = await message.reply_text(text, reply_markup=buttons)
                 
+                # Auto-delete warning
                 await asyncio.sleep(60)
                 try: await warn_msg.delete()
                 except: pass
-            else:
-                print("DEBUG: Content is Safe.")
 
         except Exception as e:
-            print(f"DEBUG CRITICAL ERROR: {e}")
-            
+            print(f"DEBUG CRITICAL: {e}")
+            # Error aane par bhi file delete honi chahiye
+            if os.path.exists(file_path):
+                try: os.remove(file_path)
+                except: pass
+                    
