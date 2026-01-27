@@ -133,7 +133,7 @@ Choose a category below to explore commands:
 
     @app.on_callback_query(filters.regex("No-Bots"))
     async def bots_callback(client, callback_query):
-        text = "🤖 No Bots System\n\n- Protect your group from users who invite spam bots. `/nobots on` Disable users to invite spam bots.\n- `/nobots off` Enable users to invite spam bots."
+        text = "🤖 No Bots System\n\n- Protect your group from users who invite spam bots.\n `/nobots on` - Disable users to invite spam bots.\n- `/nobots off` - Enable users to invite spam bots."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
         await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
         await callback_query.answer()
