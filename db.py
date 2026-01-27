@@ -1,335 +1,77 @@
-# ============================================================
-# Group Manager Bot - Database Module
-# ============================================================
-
 import motor.motor_asyncio
-from config import MONGO_URI, DB_NAME
-import logging
-import time
+from config import MONGO_URL
 
-# Setup Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(asctime)s - %(message)s'
-)
+# --- DATABASE CONNECTION ---
+# Motor is used for Asynchronous MongoDB (Fast & Non-blocking)
+client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URL)
+db = client['GroupHelpClone'] 
 
-# Connect to MongoDB
-try:
-    client = motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)
-    db = client[DB_NAME]
-    logging.info("✅ MongoDB connected successfully!")
-except Exception as e:
-    logging.error(f"❌ Failed to connect to MongoDB: {e}")
+# Collections
+settings_col = db['settings']
+nsfw_api_col = db['nsfw_apis']
 
-# ==========================================================
-# 🟢 WELCOME MESSAGE SYSTEM
-# ==========================================================
+# ======================================================
+# 🔧 GENERAL SETTINGS HELPERS
+# ======================================================
 
-async def set_welcome_message(chat_id: int, text: str):
-    await db.welcome.update_one(
+async def update_group_setting(chat_id, setting_name, value):
+    """Updates a specific setting for a group."""
+    await settings_col.update_one(
         {"chat_id": chat_id},
-        {"$set": {"message": text}},
+        {"$set": {setting_name: value}},
         upsert=True
     )
 
-async def get_welcome_message(chat_id: int):
-    data = await db.welcome.find_one({"chat_id": chat_id})
-    return data.get("message") if data else None
+async def get_group_setting(chat_id, setting_name):
+    """Retrieves a specific setting for a group (Default: False)."""
+    doc = await settings_col.find_one({"chat_id": chat_id})
+    if doc and setting_name in doc:
+        return doc[setting_name]
+    return False 
 
-async def set_welcome_status(chat_id: int, status: bool):
-    await db.welcome.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"enabled": status}},
-        upsert=True
-    )
+# ======================================================
+# 🔞 ANTI-NSFW FUNCTIONS
+# ======================================================
 
-async def get_welcome_status(chat_id: int) -> bool:
-    data = await db.welcome.find_one({"chat_id": chat_id})
-    if not data:
-        return True # Default is ON
-    return data.get("enabled", True)
+async def set_antinsfw_status(chat_id, status: bool):
+    await update_group_setting(chat_id, "antinsfw", status)
 
-# ==========================================================
-# 🔒 LOCK SYSTEM
-# ==========================================================
+async def is_antinsfw_enabled(chat_id):
+    return await get_group_setting(chat_id, "antinsfw")
 
-async def set_lock(chat_id: int, lock_type: str, status: bool):
-    await db.locks.update_one(
-        {"chat_id": chat_id},
-        {"$set": {f"locks.{lock_type}": status}},
-        upsert=True
-    )
+# --- API KEY MANAGEMENT (SightEngine) ---
 
-async def get_locks(chat_id: int):
-    data = await db.locks.find_one({"chat_id": chat_id})
-    return data.get("locks", {}) if data else {}
-
-# ==========================================================
-# 🤬 ABUSE SYSTEM (Missing Functions Restored)
-# ==========================================================
-
-async def set_abuse_status(chat_id: int, status: bool):
-    await db.abuse_settings.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"enabled": status}},
-        upsert=True
-    )
-
-async def is_abuse_enabled(chat_id: int) -> bool:
-    data = await db.abuse_settings.find_one({"chat_id": chat_id})
-    return data.get("enabled", False) if data else False
-
-# ==========================================================
-# ⚠️ WARN SYSTEM
-# ==========================================================
-
-async def add_warn(chat_id: int, user_id: int) -> int:
-    data = await db.warns.find_one({"chat_id": chat_id, "user_id": user_id})
-    warns = data.get("count", 0) + 1 if data else 1
-
-    await db.warns.update_one(
-        {"chat_id": chat_id, "user_id": user_id},
-        {"$set": {"count": warns}},
-        upsert=True
-    )
-    return warns
-
-async def get_warns(chat_id: int, user_id: int) -> int:
-    data = await db.warns.find_one({"chat_id": chat_id, "user_id": user_id})
-    return data.get("count", 0) if data else 0
-
-async def reset_warns(chat_id: int, user_id: int):
-    await db.warns.delete_one({"chat_id": chat_id, "user_id": user_id})
-
-# ==========================================================
-# 🧹 CLEANUP UTILS (Reset Group)
-# ==========================================================
-
-async def clear_group_data(chat_id: int):
-    """Group ka saara data delete karega"""
-    await db.welcome.delete_one({"chat_id": chat_id})
-    await db.locks.delete_one({"chat_id": chat_id})
-    await db.warns.delete_many({"chat_id": chat_id})
-    await db.abuse_settings.delete_one({"chat_id": chat_id})
-    await db.auth_users.delete_many({"chat_id": chat_id})
-    await db.media_delete.delete_one({"chat_id": chat_id})
-    await db.antibot.delete_one({"chat_id": chat_id})
-
-# ==========================================================
-# 👤 USER SYSTEM (For Broadcast)
-# ==========================================================
-
-async def add_user(user_id: int, first_name: str):
-    await db.users.update_one(
-        {"user_id": user_id},
-        {"$set": {"first_name": first_name}},
-        upsert=True
-    )
-
-async def get_all_users():
-    cursor = db.users.find({}, {"_id": 0, "user_id": 1})
-    users = []
-    async for document in cursor:
-        if "user_id" in document:
-            users.append(document["user_id"])
-    return users
-
-# ==========================================================
-# 🛡️ AUTH & WHITELIST SYSTEM (For Anti-Nuke)
-# ==========================================================
-
-async def add_whitelist(chat_id: int, user_id: int):
-    await db.auth_users.update_one(
-        {"chat_id": chat_id, "user_id": user_id},
-        {"$set": {"is_auth": True}},
-        upsert=True
-    )
-
-async def remove_whitelist(chat_id: int, user_id: int):
-    await db.auth_users.delete_one({"chat_id": chat_id, "user_id": user_id})
-
-async def is_user_whitelisted(chat_id: int, user_id: int) -> bool:
-    data = await db.auth_users.find_one({"chat_id": chat_id, "user_id": user_id})
-    return bool(data)
-
-async def get_whitelisted_users(chat_id: int):
-    cursor = db.auth_users.find({"chat_id": chat_id})
-    users = []
-    async for doc in cursor:
-        users.append(doc["user_id"])
-    return users
-
-async def remove_all_whitelist(chat_id: int):
-    await db.auth_users.delete_many({"chat_id": chat_id})
-
-# ==========================================================
-# ⏳ MEDIA AUTO-DELETE SYSTEM
-# ==========================================================
-
-async def set_media_delete_config(chat_id: int, seconds: int):
-    await db.media_delete.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"time": seconds, "enabled": True}},
-        upsert=True
-    )
-
-async def set_media_delete_status(chat_id: int, status: bool):
-    await db.media_delete.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"enabled": status}},
-        upsert=True
-    )
-
-async def get_media_delete_config(chat_id: int):
-    """Returns: (enabled: bool, time: int)"""
-    data = await db.media_delete.find_one({"chat_id": chat_id})
-    if not data:
-        return False, 0
-    return data.get("enabled", False), data.get("time", 60)
-
-# ==========================================================
-# 🤖 ANTI-BOT SYSTEM
-# ==========================================================
-
-async def set_antibot_status(chat_id: int, status: bool):
-    await db.antibot.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"enabled": status}},
-        upsert=True
-    )
-
-async def is_antibot_enabled(chat_id: int) -> bool:
-    data = await db.antibot.find_one({"chat_id": chat_id})
-    return data.get("enabled", False) if data else False
-    
-# ==========================================================
-# ✏️ ANTI-EDIT SYSTEM
-# ==========================================================
-
-async def set_antiedit_status(chat_id: int, status: bool):
-    await db.antiedit.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"enabled": status}},
-        upsert=True
-    )
-
-async def is_antiedit_enabled(chat_id: int) -> bool:
-    data = await db.antiedit.find_one({"chat_id": chat_id})
-    return data.get("enabled", False) if data else False
-    
-# ==========================================================
-# 🧹 CLEANER SYSTEM (No Commands & No Events)
-# ==========================================================
-
-# --- No Commands ---
-async def set_nocommands_status(chat_id: int, status: bool):
-    await db.cleaner.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"nocommands": status}},
-        upsert=True
-    )
-
-async def is_nocommands_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("nocommands", False) if data else False
-
-# --- No Events (Join/Left) ---
-async def set_noevents_status(chat_id: int, status: bool):
-    await db.cleaner.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"noevents": status}},
-        upsert=True
-    )
-
-async def is_noevents_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("noevents", False) if data else False
-    
-# ==========================================================
-# 🛡️ ADVANCED FILTERS (Hashtags, Links, Flood, etc.)
-# ==========================================================
-
-# 1. No Hashtags
-async def set_nohashtags_status(chat_id: int, status: bool):
-    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"nohashtags": status}}, upsert=True)
-
-async def is_nohashtags_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("nohashtags", False) if data else False
-
-# 2. Anti-Flood
-async def set_antiflood_status(chat_id: int, status: bool):
-    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"antiflood": status}}, upsert=True)
-
-async def is_antiflood_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("antiflood", False) if data else False
-
-# 3. No Links (URLs, Mentions, Buttons)
-async def set_nolinks_status(chat_id: int, status: bool):
-    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"nolinks": status}}, upsert=True)
-
-async def is_nolinks_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("nolinks", False) if data else False
-
-# 4. No Forwards
-async def set_noforwards_status(chat_id: int, status: bool):
-    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"noforwards": status}}, upsert=True)
-
-async def is_noforwards_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("noforwards", False) if data else False
-
-# 5. No Contacts
-async def set_nocontacts_status(chat_id: int, status: bool):
-    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"nocontacts": status}}, upsert=True)
-
-async def is_nocontacts_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("nocontacts", False) if data else False
-
-# 6. No Locations
-async def set_nolocations_status(chat_id: int, status: bool):
-    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"nolocations": status}}, upsert=True)
-
-async def is_nolocations_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("nolocations", False) if data else False
-    
-# ==========================================================
-# 🔞 ANTI-NSFW SYSTEM (API Keys & Settings)
-# ==========================================================
-
-# --- Settings (On/Off) ---
-async def set_antinsfw_status(chat_id: int, status: bool):
-    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"antinsfw": status}}, upsert=True)
-
-async def is_antinsfw_enabled(chat_id: int) -> bool:
-    data = await db.cleaner.find_one({"chat_id": chat_id})
-    return data.get("antinsfw", False) if data else False
-
-# --- API Keys Management ---
-async def add_nsfw_api(api_user: str, api_secret: str):
-    """Nayi API Key add karega"""
-    await db.nsfw_apis.update_one(
-        {"api_user": api_user},
-        {"$set": {"api_secret": api_secret}},
-        upsert=True
-    )
+async def add_nsfw_api(api_user, api_secret):
+    # Check if key already exists to prevent duplicates
+    existing = await nsfw_api_col.find_one({"api_user": api_user})
+    if not existing:
+        await nsfw_api_col.insert_one({
+            "api_user": api_user,
+            "api_secret": api_secret
+        })
 
 async def get_nsfw_api():
-    """Ek random API key dega"""
-    pipeline = [{"$sample": {"size": 1}}] # Randomly pick one
-    async for doc in db.nsfw_apis.aggregate(pipeline):
+    """Returns a RANDOM API key to balance the load (Rotation)."""
+    pipeline = [{"$sample": {"size": 1}}]
+    async for doc in nsfw_api_col.aggregate(pipeline):
         return doc
     return None
 
-async def get_all_nsfw_apis_count():
-    """Total APIs count karega"""
-    return await db.nsfw_apis.count_documents({})
+async def remove_nsfw_api(api_user):
+    """Removes a dead or exhausted API key."""
+    await nsfw_api_col.delete_one({"api_user": api_user})
 
-async def remove_nsfw_api(api_user: str):
-    """Kharab/Expired API delete karega"""
-    await db.nsfw_apis.delete_one({"api_user": api_user})
+async def get_all_nsfw_apis_count():
+    """Returns the total number of active keys."""
+    return await nsfw_api_col.count_documents({})
+
+# ======================================================
+# ⛔ ANTI-PROMOTION FUNCTIONS
+# ======================================================
+
+async def set_antipromo_status(chat_id, status: bool):
+    await update_group_setting(chat_id, "antipromo", status)
+
+async def is_antipromo_enabled(chat_id):
+    return await get_group_setting(chat_id, "antipromo")
     
