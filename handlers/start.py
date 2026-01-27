@@ -140,12 +140,29 @@ Choose a category below to explore commands:
 
     @app.on_callback_query(filters.regex("anti-nsfw"))
     async def nsfw_callback(client, callback_query):
-        text = "🔞 *Smart Anti-NSFW System**\n\nThis system uses advanced **AI** to detect and auto-delete Nudity, Gore, and Violence from your group.\nIt scans **Photos, Stickers, and Videos** instantly.\n\n**👮‍♂️ Admin Commands:**\n• `/antinsfw on` - Enable protection.\n• `/antinsfw off` - Disable protection.\n\n**🔑 API Management (Owner Only):**\n• `/addapi <user> <secret>` - Add your API Key (Owner Only).\n• `/checkapi` - Check active keys & remaining scans (Owner Only)."
-        #"• `/addamthy <user> <secret>` - Donate an API Key (Public).\n"
-        #• `/checkapi` - Check active keys & remaining scans (Owner Only)."
-        #"ℹ️ _The bot automatically rotates keys and removes expired ones._"
+        # NOTE: Hum yahan Markdown (**) use kar rahe hain, HTML (<b>) nahi.
+        text = (
+            "🔞 **Smart Anti-NSFW System**\n\n"
+            "This system uses advanced AI to detect and auto-delete Nudity, Gore, and Violence from your group.\n"
+            "It scans **Photos, Stickers, and Video Thumbnails** instantly.\n\n"
+            "**👮‍♂️ Admin Commands:**\n"
+            "• `/antinsfw on` - Enable protection.\n"
+            "• `/antinsfw off` - Disable protection.\n\n"
+            "**🔑 API Management (SightEngine):**\n"
+            "• `/addapi <user> <secret>` - Add your API Key (Owner Only).\n"
+            "• `/addamthy <user> <secret>` - Donate an API Key (Public).\n"
+            "• `/checkapi` - Check active keys & remaining scans (Owner Only).\n\n"
+            "ℹ️ _The bot automatically rotates keys and removes expired ones._"
+        )
+        
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        
+        # 'parse_mode' ko explicitly Markdown set karein taaki confusion na ho
+        from pyrogram.enums import ParseMode
+        await callback_query.message.edit_media(
+            media=InputMediaPhoto(media=START_IMAGE, caption=text, parse_mode=ParseMode.MARKDOWN), 
+            reply_markup=buttons
+        )
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("moderation"))
