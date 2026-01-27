@@ -297,3 +297,39 @@ async def is_nolocations_enabled(chat_id: int) -> bool:
     data = await db.cleaner.find_one({"chat_id": chat_id})
     return data.get("nolocations", False) if data else False
     
+# ==========================================================
+# 🔞 ANTI-NSFW SYSTEM (API Keys & Settings)
+# ==========================================================
+
+# --- Settings (On/Off) ---
+async def set_antinsfw_status(chat_id: int, status: bool):
+    await db.cleaner.update_one({"chat_id": chat_id}, {"$set": {"antinsfw": status}}, upsert=True)
+
+async def is_antinsfw_enabled(chat_id: int) -> bool:
+    data = await db.cleaner.find_one({"chat_id": chat_id})
+    return data.get("antinsfw", False) if data else False
+
+# --- API Keys Management ---
+async def add_nsfw_api(api_user: str, api_secret: str):
+    """Nayi API Key add karega"""
+    await db.nsfw_apis.update_one(
+        {"api_user": api_user},
+        {"$set": {"api_secret": api_secret}},
+        upsert=True
+    )
+
+async def get_nsfw_api():
+    """Ek random API key dega"""
+    pipeline = [{"$sample": {"size": 1}}] # Randomly pick one
+    async for doc in db.nsfw_apis.aggregate(pipeline):
+        return doc
+    return None
+
+async def get_all_nsfw_apis_count():
+    """Total APIs count karega"""
+    return await db.nsfw_apis.count_documents({})
+
+async def remove_nsfw_api(api_user: str):
+    """Kharab/Expired API delete karega"""
+    await db.nsfw_apis.delete_one({"api_user": api_user})
+    
