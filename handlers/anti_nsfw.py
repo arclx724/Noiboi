@@ -14,7 +14,7 @@ API_URL = "https://api.sightengine.com/1.0/check.json"
 def register_antinsfw_handlers(app: Client):
 
     # ======================================================
-    # 1. API MANAGEMENT (Add Keys)
+    # 1. API MANAGEMENT
     # ======================================================
 
     @app.on_message(filters.command(["addapi", "addamthy"]) & filters.private)
@@ -35,8 +35,6 @@ def register_antinsfw_handlers(app: Client):
         api_user = message.command[1]
         api_secret = message.command[2]
         
-        print(f"DEBUG: Trying to save {api_user}...") 
-
         try:
             await db.add_nsfw_api(api_user, api_secret)
             print("DEBUG: Saved successfully!") 
@@ -75,7 +73,7 @@ def register_antinsfw_handlers(app: Client):
                 await message.reply_text("😌 **Anti-NSFW Disabled!**")
 
     # ======================================================
-    # 3. SCANNER LOGIC (FIXED)
+    # 3. SCANNER LOGIC (FINAL FIX)
     # ======================================================
 
     async def scan_image(image_bytes):
@@ -96,7 +94,7 @@ def register_antinsfw_handlers(app: Client):
                 async with session.post(API_URL, data=data) as resp:
                     result = await resp.json()
             
-            print(f"DEBUG: API Raw Result: {result}") 
+            print(f"DEBUG: API Raw Result: {result}")
 
             if result['status'] == 'failure':
                 error_code = result.get('error', {}).get('code')
@@ -116,7 +114,6 @@ def register_antinsfw_handlers(app: Client):
     async def nsfw_watcher(client, message):
         chat_id = message.chat.id
         
-        # Check enabled
         if not await db.is_antinsfw_enabled(chat_id):
             return
 
@@ -129,14 +126,12 @@ def register_antinsfw_handlers(app: Client):
             media = message.photo
             print("DEBUG: Media is PHOTO")
         elif message.sticker:
-            print(f"DEBUG: Media is STICKER (Animated: {message.sticker.is_animated}, Video: {message.sticker.is_video})")
             if message.sticker.thumbs:
-                # FIX: Use [-1] for largest thumbnail
                 media = message.sticker.thumbs[-1] 
-                print("DEBUG: Sticker Thumbnail Found (Scanning thumb)")
+                print("DEBUG: Sticker Thumbnail Found")
             elif not message.sticker.is_animated and not message.sticker.is_video:
                 media = message.sticker
-                print("DEBUG: Static Sticker (Scanning direct file)")
+                print("DEBUG: Static Sticker Found")
             else:
                 print("DEBUG: Sticker has NO thumbs and is Animated. Skipping.")
         elif message.video:
@@ -152,7 +147,7 @@ def register_antinsfw_handlers(app: Client):
             print("DEBUG: No scannable media found. Exiting.")
             return 
 
-        # 2. Download
+        # 2. Download (FIXED LOGIC)
         try:
             if media.file_size > 2 * 1024 * 1024: 
                 print("DEBUG: File too big (>2MB). Skipping.")
@@ -160,10 +155,10 @@ def register_antinsfw_handlers(app: Client):
 
             print("DEBUG: Downloading media...")
             file_stream = io.BytesIO()
-            
-            # --- FIX APPLIED HERE ---
-            # Humne 'file_ref' hata diya aur direct 'media' object pass kiya
-            await client.download_media(media, file_name=file_stream)
+            file_stream.name = "sticker.jpg" # Dummy name for Pyrogram
+
+            # --- FIX: Pass stream directly without 'file_name=' keyword ---
+            await client.download_media(media, file_stream)
             
             file_stream.seek(0)
             print("DEBUG: Download complete. Scanning...")
@@ -172,7 +167,7 @@ def register_antinsfw_handlers(app: Client):
             result = await scan_image(file_stream)
             
             if not result:
-                print("DEBUG: Scan returned None (API Error or Empty).")
+                print("DEBUG: Scan returned None.")
                 return 
 
             # 4. Check Score
