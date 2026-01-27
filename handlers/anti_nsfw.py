@@ -28,11 +28,9 @@ def register_antinsfw_handlers(app: Client):
         # Security: Only Owner can use /addapi
         if command_used == "addapi":
             if message.from_user.id != int(OWNER_ID):
-                # Specific Owner Rejection
                 await message.reply_text("❌ **Access Denied!** Only the Owner can use this command.")
                 return
 
-        # Check for correct usage
         if len(message.command) != 3:
             await message.reply_text(f"Usage: `/{command_used} <api_user> <api_secret>`")
             return
@@ -41,9 +39,7 @@ def register_antinsfw_handlers(app: Client):
         api_secret = message.command[2]
         
         try:
-            # Add to Database
             await db.add_nsfw_api(api_user, api_secret)
-            
             if command_used == "addamthy":
                 await message.reply_text(f"🎉 **Thanks for contributing!**\nAPI Key Added successfully.")
             else:
@@ -53,13 +49,10 @@ def register_antinsfw_handlers(app: Client):
 
     @app.on_message(filters.command("checkapi") & filters.private)
     async def check_api_stats(client, message):
-        # Only Owner can check stats
         if message.from_user.id != int(OWNER_ID):
             return
         
         count = await db.get_all_nsfw_apis_count()
-        
-        # Calculation: 1 Free SightEngine Key = 2000 Scans/Month
         total_scans = count * 2000
         
         await message.reply_text(
@@ -70,25 +63,28 @@ def register_antinsfw_handlers(app: Client):
         )
 
     # ======================================================
-    # 2. GROUP SETTINGS (Admin Permission Check)
+    # 2. GROUP SETTINGS (With Updated Error Messages)
     # ======================================================
 
     @app.on_message(filters.command("antinsfw") & filters.group)
     async def antinsfw_switch(client, message):
-        # 1. Check User Permissions
+        # --- 1. USER PERMISSION CHECK ---
         user = await client.get_chat_member(message.chat.id, message.from_user.id)
         if user.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-            # REQUESTED RESPONSE 1: User is not admin
             await message.reply_text("You need to be an admin to do this.")
             return
 
-        # 2. Check Bot Permissions (Optional check before enabling)
-        bot_member = await client.get_chat_member(message.chat.id, (await client.get_me()).id)
-        if not bot_member.privileges.can_delete_messages:
-             # REQUESTED RESPONSE 2: Bot is not admin or lacks rights
-            await message.reply_text("Please give me permission to banned members..!!!")
+        # --- 2. BOT PERMISSION CHECK ---
+        bot_id = (await client.get_me()).id
+        bot_member = await client.get_chat_member(message.chat.id, bot_id)
+        
+        # Check if bot is Admin AND has Delete rights
+        if bot_member.status != ChatMemberStatus.ADMINISTRATOR or not bot_member.privileges.can_delete_messages:
+            # UPDATED RESPONSE
+            await message.reply_text("Please give me permission to delete messages..!!!")
             return
 
+        # --- 3. COMMAND LOGIC ---
         if len(message.command) > 1:
             arg = message.command[1].lower()
             if arg == "on":
@@ -105,9 +101,6 @@ def register_antinsfw_handlers(app: Client):
     # ======================================================
 
     async def scan_file_on_disk(file_path):
-        """
-        Reads a file from disk, sends to API, handles key rotation.
-        """
         api_data = await db.get_nsfw_api()
         if not api_data:
             print("DEBUG: No API Keys available! Please add keys using /addapi")
@@ -126,7 +119,6 @@ def register_antinsfw_handlers(app: Client):
                     async with session.post(API_URL, data=data) as resp:
                         result = await resp.json()
             
-            # Error Handling
             if result['status'] == 'failure':
                 error_code = result.get('error', {}).get('code')
                 if error_code in [21, 23, 103]: 
@@ -145,11 +137,11 @@ def register_antinsfw_handlers(app: Client):
     async def nsfw_watcher(client, message):
         chat_id = message.chat.id
         
-        # 1. Check if Enabled
+        # Check if Enabled
         if not await db.is_antinsfw_enabled(chat_id):
             return
 
-        # 2. Identify Media
+        # Identify Media
         media = None
         if message.photo:
             media = message.photo
@@ -172,26 +164,24 @@ def register_antinsfw_handlers(app: Client):
         file_path = os.path.join(TEMP_DOWNLOAD_PATH, f"scan_{chat_id}_{message.id}.jpg")
 
         try:
-            # 3. Size Check (5MB)
+            # Size Check (5MB)
             if media.file_size > 5 * 1024 * 1024: return 
 
-            # 4. Download
+            # Download
             await client.download_media(media, file_name=file_path)
-            
             if not os.path.exists(file_path): return
 
-            # 5. Scan
+            # Scan
             result = await scan_file_on_disk(file_path)
             
-            # 6. Cleanup
+            # Cleanup
             try: os.remove(file_path)
             except: pass
 
             if not result: return 
 
-            # 7. Parse Score
+            # Parse Score
             nsfw_score = 0
-            
             if 'nudity' in result:
                 raw = result['nudity'].get('raw', 0)
                 partial = result['nudity'].get('partial', 0)
@@ -213,17 +203,16 @@ def register_antinsfw_handlers(app: Client):
                 elif isinstance(g, float) or isinstance(g, int):
                     nsfw_score = max(nsfw_score, g)
 
-            # 8. ACTION: Delete if Score > 60%
+            # --- ACTION: Delete if Score > 60% ---
             if nsfw_score > 0.60:
                 percent = int(nsfw_score * 100)
                 
-                # Attempt to Delete
                 try: 
                     await message.delete()
                 except Exception:
-                    # REQUESTED RESPONSE 2: Bot failed to delete (No permissions)
+                    # UPDATED RESPONSE: If bot fails to delete (No Rights)
                     await message.reply_text("Please give me permission to delete messages..!!!")
-                    return # Stop further processing if we can't delete
+                    return 
                 
                 # Warning Message
                 text = (
@@ -249,4 +238,4 @@ def register_antinsfw_handlers(app: Client):
             if os.path.exists(file_path):
                 try: os.remove(file_path)
                 except: pass
-                    
+                
