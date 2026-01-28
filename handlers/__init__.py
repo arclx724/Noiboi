@@ -25,7 +25,7 @@ def register_all_handlers(app: Client):
         register_start(app)
         register_group(app)
         register_antinsfw_handlers(app)
-        register_antipromo_handlers(app)
+        #register_antipromo_handlers(app)
         
         # 2. Register Missing Handlers (Uncomment when files exist)
         # register_abuse(app)
