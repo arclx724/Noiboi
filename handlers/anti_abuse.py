@@ -213,4 +213,5 @@ def register_abuse_handlers(app: Client):
                 await sent.delete()
             except Exception as e:
                 print(f"Error deleting abuse: {e}")
-                            
+
+                
