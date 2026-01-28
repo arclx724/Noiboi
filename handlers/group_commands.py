@@ -1,6 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, ChatMemberUpdated, ChatPermissions, ChatPrivileges
 from pyrogram.enums import ChatMemberStatus
+from pyrogram.raw import types
 import logging
 import db
 
@@ -9,69 +10,8 @@ DEFAULT_WELCOME = "👋 Welcome {first_name} to {title}!"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# ==========================================================
-# HELPER FUNCTIONS
-# ==========================================================
 
-async def is_power(client, chat_id: int, user_id: int) -> bool:
-    """Checks if a user is an Admin or Owner."""
-    try:
-        member = await client.get_chat_member(chat_id, user_id)
-        return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
-    except:
-        return False
-
-async def extract_target_user(client, message):
-    """Extracts user from reply or username/ID argument."""
-    if message.reply_to_message:
-        return message.reply_to_message.from_user
-
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        return None
-
-    arg = parts[1]
-    user = None
-
-    if arg.startswith("@"):
-        try:
-            user = await client.get_users(arg)
-        except Exception:
-            pass
-    elif arg.isdigit():
-        try:
-            user = await client.get_users(int(arg))
-        except Exception:
-            pass
-
-    return user
-
-async def handle_welcome(client, chat_id: int, users: list, chat_title: str):
-    """Sends the welcome message."""
-    status = await db.get_welcome_status(chat_id)
-    if not status:
-        return
-
-    welcome_text = await db.get_welcome_message(chat_id) or DEFAULT_WELCOME
-
-    for user in users:
-        try:
-            text = welcome_text.format(
-                username=user.username or user.first_name,
-                first_name=user.first_name,
-                mention=user.mention,
-                title=chat_title,
-            )
-        except KeyError:
-            # Fallback if user uses invalid {tags}
-            text = DEFAULT_WELCOME.format(first_name=user.first_name, title=chat_title)
-        try:
-            await client.send_message(chat_id, text)
-        except Exception as e:
-            logger.error(f"🚨 Failed to send welcome message: {e}")
-
-
-def register_handlers(app: Client): # Renamed to standard 'register_handlers'
+def register_group_commands(app: Client):
 
     # ==========================================================
     # WELCOME SYSTEM
@@ -94,7 +34,6 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         old_status = cmu.old_chat_member.status
         new_status = cmu.new_chat_member.status
 
-        # If user was Left/Restricted and joined back
         if old_status in [ChatMemberStatus.LEFT, ChatMemberStatus.RESTRICTED] \
            and new_status == ChatMemberStatus.MEMBER:
             await handle_welcome(
@@ -104,6 +43,16 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
                 cmu.chat.title,
             )
 
+# ==========================================================
+# power logic
+# ==========================================================
+    async def is_power(client, chat_id: int, user_id: int) -> bool:
+        member = await client.get_chat_member(chat_id, user_id)
+        return member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]
+
+# ==========================================================
+# on/off welcome
+# ==========================================================
     @app.on_message(filters.group & filters.command("welcome"))
     async def welcome_toggle(client, message: Message):
         if not await is_power(client, message.chat.id, message.from_user.id):
@@ -118,23 +67,48 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         msg = "✅ Welcome messages ON." if status else "⚠️ Welcome messages OFF."
         await message.reply_text(msg)
 
+# ==========================================================
+# custom welcome
+# ==========================================================
     @app.on_message(filters.group & filters.command("setwelcome"))
-    async def set_welcome_cmd(client, message: Message):
+    async def set_welcome(client, message: Message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("⚠️ Only admin or owner can use this command.")
 
         parts = message.text.split(maxsplit=1)
         if len(parts) < 2:
-            return await message.reply_text("🤖 Usage: /setwelcome <your_message>\nVariables: {first_name}, {mention}, {title}")
+            return await message.reply_text("🤖 Usage: /setwelcome <your_message>")
 
         await db.set_welcome_message(message.chat.id, parts[1])
         await message.reply_text("✅ Custom welcome message saved!")
 
-    # ==========================================================
-    # LOCK SYSTEM
-    # ==========================================================
+    async def handle_welcome(client, chat_id: int, users: list, chat_title: str):
+        status = await db.get_welcome_status(chat_id)
+        if not status:
+            return
 
-    @app.on_message(filters.group & filters.command("lock"))
+        welcome_text = await db.get_welcome_message(chat_id) or DEFAULT_WELCOME
+
+        for user in users:
+            try:
+                text = welcome_text.format(
+                    username=user.username or user.first_name,
+                    first_name=user.first_name,
+                    mention=user.mention,
+                    title=chat_title,
+                )
+            except KeyError:
+                text = DEFAULT_WELCOME.format(first_name=user.first_name, title=chat_title)
+            try:
+                await client.send_message(chat_id, text)
+            except Exception as e:
+                logger.error(f"🚨 Failed to send welcome message: {e}")
+
+# ==========================================================
+#  lock system
+# ==========================================================
+
+    @app.on_message(filters.group & filters.command("lock", "no"))
     async def lock_command(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
@@ -152,7 +126,10 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         await db.set_lock(message.chat.id, lock_type, True)
         await message.reply_text(f"🔒 {lock_type.capitalize()} locked successfully!")
 
-    @app.on_message(filters.group & filters.command("unlock"))
+# ==========================================================
+# unlock
+# ==========================================================
+    @app.on_message(filters.group & filters.command("unlock", "no"))
     async def unlock_command(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
@@ -170,6 +147,10 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         await db.set_lock(message.chat.id, lock_type, False)
         await message.reply_text(f"🔓 {lock_type.capitalize()} unlocked successfully!")
 
+
+# ==========================================================
+# locks
+# ==========================================================
     @app.on_message(filters.group & filters.command("locks"))
     async def locks_list(client, message):
         locks = await db.get_locks(message.chat.id)
@@ -182,11 +163,13 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
             text += f"• {lock_type.capitalize()}: {state}\n"
         await message.reply_text(text)
 
-    # --- ENFORCE LOCKS ---
+
+# ==========================================================
+# handle all locks
+# ==========================================================
     @app.on_message(filters.group & ~filters.service, group=1)
     async def enforce_locks(client, message):
         try:
-            # Skip Admins
             member = await client.get_chat_member(message.chat.id, message.from_user.id)
             if member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
                 return
@@ -197,7 +180,6 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         if not locks:
             return
 
-        # Check URL
         if locks.get("url") and message.text:
             if message.entities:
                 for ent in message.entities:
@@ -205,37 +187,61 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
                         await message.delete()
                         return
             lower = message.text.lower()
-            if "t.me/" in lower or "telegram.me/" in lower or "http" in lower:
+            if "t.me/" in lower or "telegram.me/" in lower:
                 await message.delete()
                 return
 
-        # Check Sticker
         if locks.get("sticker") and message.sticker:
             await message.delete()
             return
 
-        # Check Media
-        if locks.get("media") and (message.photo or message.video or message.document or message.animation or message.audio):
+        if locks.get("media") and (message.photo or message.video or message.document or message.animation):
             await message.delete()
             return
 
-        # Check Username
         if locks.get("username") and message.text and "@" in message.text:
             await message.delete()
             return
 
-        # Check Forward
-        if locks.get("forward") and (message.forward_date or message.forward_from or message.forward_from_chat):
+        if locks.get("forward") and message.forward_from:
             await message.delete()
             return
         return
 
-    # ==========================================================
-    # MODERATION (Kick/Ban/Mute)
-    # ==========================================================
+# ==========================================================
+# Moderation system
+# ==========================================================
 
+    # ==== extract user from username or user_id
+    async def extract_target_user(client, message):
+        if message.reply_to_message:
+            return message.reply_to_message.from_user
+
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            return None
+
+        arg = parts[1]
+        user = None
+
+        if arg.startswith("@"):
+            try:
+                user = await client.get_users(arg)
+            except Exception:
+                pass
+        elif arg.isdigit():
+            try:
+                user = await client.get_users(int(arg))
+            except Exception:
+                pass
+
+        return user
+
+# ==========================================================
+# kick
+# ==========================================================
     @app.on_message(filters.group & filters.command("kick"))
-    async def kick_cmd(client, message):
+    async def kick_user(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
 
@@ -250,8 +256,11 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         except Exception as e:
             await message.reply_text(f"❌ Failed to kick: {e}")
 
+# ==========================================================
+# ban
+# ==========================================================
     @app.on_message(filters.group & filters.command("ban"))
-    async def ban_cmd(client, message):
+    async def ban_user(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
 
@@ -265,8 +274,11 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         except Exception as e:
             await message.reply_text(f"❌ Failed to ban: {e}")
 
+# ==========================================================
+# unban
+# ==========================================================
     @app.on_message(filters.group & filters.command("unban"))
-    async def unban_cmd(client, message):
+    async def unban_user(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
 
@@ -280,8 +292,11 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         except Exception as e:
             await message.reply_text(f"❌ Failed to unban: {e}")
 
+# ==========================================================
+# mute
+# ==========================================================
     @app.on_message(filters.group & filters.command("mute"))
-    async def mute_cmd(client, message):
+    async def mute_user(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
 
@@ -299,8 +314,11 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         except Exception as e:
             await message.reply_text(f"❌ Failed to mute: {e}")
 
+# ==========================================================
+# unmute
+# ==========================================================
     @app.on_message(filters.group & filters.command("unmute"))
-    async def unmute_cmd(client, message):
+    async def unmute_user(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
 
@@ -323,10 +341,9 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         except Exception as e:
             await message.reply_text(f"❌ Failed to unmute: {e}")
 
-    # ==========================================================
-    # WARNING SYSTEM
-    # ==========================================================
-
+# ==========================================================
+# warn
+# ==========================================================
     @app.on_message(filters.group & filters.command("warn"))
     async def warn_user(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
@@ -343,11 +360,13 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
                 user.id,
                 permissions=ChatPermissions(can_send_messages=False),
             )
-            await db.reset_warns(message.chat.id, user.id)
             await message.reply_text(f"🚫 {user.mention} reached 3 warns and was muted.")
         else:
             await message.reply_text(f"⚠️ {user.mention} now has {warns}/3 warnings.")
 
+# ==========================================================
+# warns
+# ==========================================================
     @app.on_message(filters.group & filters.command("warns"))
     async def warns_user(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
@@ -360,6 +379,9 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         warns = await db.get_warns(message.chat.id, user.id)
         await message.reply_text(f"⚠️ {user.mention} has {warns}/3 warnings.")
 
+# ==========================================================
+# resetwarns
+# ==========================================================
     @app.on_message(filters.group & filters.command("resetwarns"))
     async def resetwarns_user(client, message):
         if not await is_power(client, message.chat.id, message.from_user.id):
@@ -372,12 +394,27 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
         await db.reset_warns(message.chat.id, user.id)
         await message.reply_text(f"✅ {user.mention}'s warns have been reset.")
 
-    # ==========================================================
-    # PROMOTE / DEMOTE
-    # ==========================================================
+# ==========================================================
+# resetwarns
+# ==========================================================
+    @app.on_message(filters.group & filters.command("resetwarns"))
+    async def resetwarns_user(client, message):
+        if not await is_power(client, message.chat.id, message.from_user.id):
+            return await message.reply_text("❌ Only admin can use this command.")
 
+        user = await extract_target_user(client, message)
+        if not user:
+            return await message.reply_text("⚠️ Usage: Reply or use `/resetwarns @username`")
+
+        await db.reset_warns(message.chat.id, user.id)
+        await message.reply_text(f"✅ {user.mention}'s warns have been reset.")
+
+            
+# ==========================================================
+# Promote Command
+# ==========================================================
     @app.on_message(filters.group & filters.command("promote"))
-    async def promote_user_cmd(client: Client, message: Message):
+    async def promote_user(client: Client, message: Message):
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin or owner can use this command.")
     
@@ -414,9 +451,14 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
                 await message.reply_text("⚠️ Bot must be admin with 'Add Admins' permission to promote.")
             else:
                 await message.reply_text(f"❌ Failed to promote: {e}")
-
+    
+    
+# ==========================================================
+# Demote Command
+# ==========================================================
     @app.on_message(filters.group & filters.command("demote"))
-    async def demote_user_cmd(client: Client, message: Message):
+    async def demote_user(client: Client, message: Message):
+        # Check if executor is admin
         if not await is_power(client, message.chat.id, message.from_user.id):
             return await message.reply_text("❌ Only admin can use this command.")
     
@@ -437,7 +479,6 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
             return await message.reply_text("❌ You cannot demote yourself.")
     
         try:
-            # Revoke all privileges
             no_privileges = ChatPrivileges(
                 can_manage_chat=False,
                 can_delete_messages=False,
@@ -464,22 +505,24 @@ def register_handlers(app: Client): # Renamed to standard 'register_handlers'
                 await message.reply_text("❌ Bot must be admin with 'Add Admins' permission to demote.")
             else:
                 await message.reply_text(f"⚠️ Failed to demote: {e}")
-
-    # ==========================================================
-    # ANTI-EDIT
-    # ==========================================================
+    
+        # --- Anti-Edit Command (Renamed to /noedits) ---
     @app.on_message(filters.command("noedits") & filters.group)
     async def antiedit_handler(client, message):
-        if not await is_power(client, message.chat.id, message.from_user.id):
+        # Sirf Admin settings change kar sakta hai
+        member = await client.get_chat_member(message.chat.id, message.from_user.id)
+        if not (member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]):
             return
 
         if len(message.command) > 1:
             arg = message.command[1].lower()
             if arg == "on":
                 await db.set_antiedit_status(message.chat.id, True)
-                await message.reply_text("✏️ **Anti-Edit System Enabled!**\nNow edited messages will be deleted.")
+                await message.reply_text("✏️ **Anti-Edit System Enabled!**\nNow edited messages will be deleted after 60s.")
             elif arg == "off":
                 await db.set_antiedit_status(message.chat.id, False)
                 await message.reply_text("✏️ **Anti-Edit System Disabled!**")
+            else:
+                await message.reply_text("Usage: `/noedits on` or `/noedits off`")
         else:
             await message.reply_text("Usage: `/noedits on` or `/noedits off`")
