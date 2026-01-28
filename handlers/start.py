@@ -13,19 +13,9 @@ def register_handlers(app: Client):
     # ==========================================================
     async def send_start_menu(message, user, is_edit=False):
         text = f"""
-✨ **Hey there {user.mention}!** ✨
+**Hey, {user.mention}!**
 
-My name is **MissKaty** 🤖. I have many useful features for you, feel free to add me to your group.
-
-**Highlights:**
-────────────────────────
-• Smart Anti-Spam & Link Shield 🛡️
-• Adaptive Lock System 🔒
-• Modular & Scalable Protection ⚙️
-• Sleek UI with Inline Controls 🚀
-
-» More New Features coming soon ...
-"""
+Thanks for using **RoboKaty**. **RoboKaty** is a multi-purpose Telegram bot with a number of different features. Select one of the categories below for more information."""
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("Add Me To Your Group 🎉", url=f"https://t.me/{BOT_USERNAME}?startgroup=true")],
             [
