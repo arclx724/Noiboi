@@ -155,14 +155,4 @@ async def remove_nsfw_api(api_user):
 async def get_all_nsfw_apis_count():
     """Returns the total number of active keys."""
     return await nsfw_api_col.count_documents({})
-
-# ======================================================
-# ⛔ ANTI-PROMOTION FUNCTIONS
-# ======================================================
-
-async def set_antipromo_status(chat_id, status: bool):
-    await update_group_setting(chat_id, "antipromo", status)
-
-async def is_antipromo_enabled(chat_id):
-    return await get_group_setting(chat_id, "antipromo")
     
