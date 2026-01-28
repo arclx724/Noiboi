@@ -1,19 +1,18 @@
 from pyrogram import Client, filters
 from pyrogram.types import (
     InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    InputMediaPhoto
+    InlineKeyboardMarkup
 )
-from config import BOT_USERNAME, SUPPORT_GROUP, UPDATE_CHANNEL, START_IMAGE, OWNER_ID
+# START_IMAGE ko import se hata diya hai
+from config import BOT_USERNAME, SUPPORT_GROUP, UPDATE_CHANNEL, OWNER_ID
 import db
 
 def register_handlers(app: Client):
 
     # ==========================================================
-    # 1. SEND START MENU
+    # 1. SEND START MENU (Text Only)
     # ==========================================================
     async def send_start_menu(message, user, is_edit=False):
-        # Yahan formatting rehne di hai kyunki ye crash nahi karta
         text = f"""
 ✨ **Hey there {user.mention}!** ✨
 
@@ -42,12 +41,14 @@ My name is **MissKaty** 🤖. I have many useful features for you, feel free to 
         ])
 
         if is_edit:
-            await message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+            # edit_media ki jagah edit_text
+            await message.edit_text(text=text, reply_markup=buttons)
         else:
-            await message.reply_photo(START_IMAGE, caption=text, reply_markup=buttons)
+            # reply_photo ki jagah reply_text
+            await message.reply_text(text=text, reply_markup=buttons, disable_web_page_preview=True)
 
     # ==========================================================
-    # 2. SEND HELP MENU
+    # 2. SEND HELP MENU (Text Only)
     # ==========================================================
     async def send_help_menu(message, is_edit=False):
         text = """
@@ -75,9 +76,9 @@ Choose a category below to explore commands:
         ])
 
         if is_edit:
-            await message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+            await message.edit_text(text=text, reply_markup=buttons)
         else:
-            await message.reply_photo(START_IMAGE, caption=text, reply_markup=buttons)
+            await message.reply_text(text=text, reply_markup=buttons)
 
     # ==========================================================
     # 3. START COMMAND
@@ -96,7 +97,7 @@ Choose a category below to explore commands:
         await send_start_menu(message, user, is_edit=False)
 
     # ==========================================================
-    # 4. CALLBACKS
+    # 4. CALLBACKS (Text Only)
     # ==========================================================
     @app.on_callback_query(filters.regex("help"))
     async def help_callback(client, callback_query):
@@ -109,87 +110,65 @@ Choose a category below to explore commands:
         await send_start_menu(callback_query.message, user, is_edit=True)
         await callback_query.answer()
 
-    # --- Feature Callbacks (FIXED: ALL MARKDOWN REMOVED TO PREVENT CRASH) ---
+    # --- Feature Callbacks (Updated to edit_text) ---
     @app.on_callback_query(filters.regex("greetings"))
     async def greetings_callback(client, callback_query):
         text = "⚙ Welcome System\n\n- /setwelcome <text>\n- /welcome on/off"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("locks"))
     async def locks_callback(client, callback_query):
         text = "🔐 **Lock System Guide**\n\n**Commands:**\n- `/lock` <type>: Lock a specific feature.\n- `/unlock` <type>: Unlock a specific feature.\n- `/locks`: View current group settings.\n\n**Available Types:**\n`url`, `sticker`, `media`, `username`, `forward`\n\n**Example:**\n`/lock url` → Blocks all links.\n`/unlock sticker` → Allows stickers again.\n\n⚠️ **Note:** Admins are not affected by these locks."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("Media-Guardian"))
     async def media_callback(client, callback_query):
         text = "**Set auto-delete delay media using:**\n\n `/setdelay on/off`\n `/setdelay` <value> [s/m/h]\n\n **Examples:**\n `/setdelay 10 s` → `10 seconds`\n `/setdelay 5 m`  → 5 minutes\n `/setdelay 1 h`  → 1 hour (max 24h)"
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("No-Bots"))
     async def bots_callback(client, callback_query):
         text = "🤖 No Bots System\n\n- Protect your group from users who invite spam bots.\n `/nobots on` - Disable users to invite spam bots.\n- `/nobots off` - Enable users to invite spam bots."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("anti-nsfw"))
     async def nsfw_callback(client, callback_query):
-        # NOTE: Hum yahan Markdown (**) use kar rahe hain, HTML (<b>) nahi.
-        text = (
-            "🔞 **Smart Anti-NSFW System**\n\n"
-            "This system uses advanced AI to detect and auto-delete Nudity, Gore, and Violence from your group.\n"
-            "It scans **Photos, Stickers, and Video Thumbnails** instantly.\n\n"
-            "**👮‍♂️ Admin Commands:**\n"
-            "• `/antinsfw on` - Enable protection.\n"
-            "• `/antinsfw off` - Disable protection.\n\n"
-            "**🔑 API Management (Sudo Only):**\n"
-            "• `/addapi <user> <secret>` - Add your API Key (Sudo Only).\n"
-            #"• `/addamthy <user> <secret>` - Donate an API Key (Public).\n"
-            "• `/checkapi` - Check active keys & remaining scans (Sudo Only).\n\n"
-        )
-            #"ℹ️ _The bot automatically rotates keys and removes expired ones._"
-        
-        
+        text = "🔞 *Smart Anti-NSFW System**\n\nThis system uses advanced **AI** to detect and auto-delete Nudity, Gore, and Violence from your group.\nIt scans **Photos, Stickers, and Videos** instantly.\n\n**👮‍♂️ Admin Commands:**\n• `/antinsfw on` - Enable protection.\n• `/antinsfw off` - Disable protection.\n\n**🔑 API Management (Owner Only):**\n• `/addapi <user> <secret>` - Add your API Key (Owner Only).\n• `/checkapi` - Check active keys & remaining scans (Owner Only)."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        
-        # 'parse_mode' ko explicitly Markdown set karein taaki confusion na ho
-        from pyrogram.enums import ParseMode
-        await callback_query.message.edit_media(
-            media=InputMediaPhoto(media=START_IMAGE, caption=text, parse_mode=ParseMode.MARKDOWN), 
-            reply_markup=buttons
-        )
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("moderation"))
     async def moderation_callback(client, callback_query):
         text = "👮‍♂️ **Moderation**\n\n- /kick: Kick a user.\n- /ban: Ban a user.\n- /mute: Mute a user.\n- /promote: Promote a user.\n- /demote: Demote a user."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("Clean-Service"))
     async def clean_service_callback(client, callback_query):
-        # Backticks removed here: `/command` -> /command
         text = "🧹 **Clean Service**\n\n- `/noevents on/off`: Filter 'X joined or left the group' notifications.\n- `/nolinks on/off`: Filter messages with links, mentions, forwards, or reply markup.\n- `/noforwards on/off`: Filter messages with a mention of any participants.\n- `/nocontacts on/off`: Filter messages with contact numbers of users.\n- `/nolocations on/off`: Filter messages containing user locations.\n- `/nocommands on/off`: Filter commands from group members.\n- `/nohashtags on/off`: Filter messages containing hashtags.\n- `/antiflood on/off`: Limit frequent messages (3 per 20 seconds)."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     @app.on_callback_query(filters.regex("anti-cheater"))
     async def anti_cheater_callback(client, callback_query):
-        text = "**Anti-Cheater**\n\n - Works automatically — no commands needed\n\n 🚨 **The bot tracks admin actions.**\n - If an admin kicks or bans more than 10 users in 24 hours, they are auto-demoted.\n\n - Limits reset automatically every 24 hours.\n\n 🔒 **Only admins promoted by this bot can be auto-demoted.**\n Use `/promote` and give the bot Add Admin permission.\n\n 🛡️ Protects your group from fake or abusive admins."
+        text = "**Anti-Cheater**\n\n - Works automatically — no commands needed\n\n 🚨 **The bot tracks admin actions.**\n - If an admin kicks or bans more than 10 users in 24 hours, they are auto-demoted.\n\n - Limits reset automatically every 24 hours.\n\n 🔒 **Only admins promoted by this bot can be auto-demoted.**\n Use /promote and give the bot Add Admin permission.\n\n 🛡️ Protects your group from fake or abusive admins."
         buttons = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="help")]])
-        await callback_query.message.edit_media(media=InputMediaPhoto(media=START_IMAGE, caption=text), reply_markup=buttons)
+        await callback_query.message.edit_text(text=text, reply_markup=buttons)
         await callback_query.answer()
 
     # ==========================================================
-    # 5. NEW CHAT MEMBERS (Group Welcome)
+    # 5. NEW CHAT MEMBERS (Group Welcome - Text Only)
     # ==========================================================
     @app.on_message(filters.new_chat_members)
     async def welcome_bot(client, message):
@@ -207,7 +186,7 @@ Choose a category below to explore commands:
                     [InlineKeyboardButton("Commands ❓", url=f"https://t.me/{BOT_USERNAME}?start=help")]
                 ])
 
-                await message.reply_photo(START_IMAGE, caption=text, reply_markup=buttons)
+                await message.reply_text(text=text, reply_markup=buttons)
 
     # ==========================================================
     # 6. OWNER COMMANDS
@@ -227,4 +206,4 @@ Choose a category below to explore commands:
         if message.from_user.id != OWNER_ID: return
         users = await db.get_all_users()
         await message.reply_text(f"💡 Total users: {len(users)}")
-        
+    
