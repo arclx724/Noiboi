@@ -5,7 +5,7 @@ import logging
 from .start import register_handlers as register_start
 from .group_commands import register_handlers as register_group  # group -> group_commands fix
 from .anti_nsfw import register_antinsfw_handlers
-from .anti_promotion import register_antipromo_handlers
+#from .anti_promotion import register_biolink_handlers
 
 # --- MISSING PLUGINS (Inhe comment kar diya hai taaki error na aaye) ---
 # Jab aap ye files bana lein, tab inka '#' hata dena
