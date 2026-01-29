@@ -184,7 +184,7 @@ def register_abuse_handlers(app: Client):
                 buttons = InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("➕ Add Me", url=f"https://t.me/{BOT_USERNAME}?startgroup=true"),
-                        InlineKeyboardButton("📢 Updates", url="https://t.me/world_bfc_zonee")
+                        InlineKeyboardButton("📢 Updates", url="https://t.me/robokaty")
                     ]
                 ])
 
