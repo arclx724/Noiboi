@@ -10,8 +10,8 @@ import db
 # --- Abusive Words List ---
 ABUSIVE_WORDS = [
     "aand", "aad", "asshole", "b.c.", "b.s.d.k", "babbe", "babbey", "bahenchod", 
-    "bakchod", "bakchodi", "bakchodd", "bastard", "bc", "behench*d", "behenchod", 
-    "bevkuf", "bevakoof", "bevda", "bevdey", "bevkoof", "bewakoof", "bewday", 
+    "bakchod", "b.c", "m.c", "bakchodi", "bakchodd", "bastard", "burchodi", "boor", "bur", "bc", "behench*d", "behenchod", 
+    "bevkuf", "chudai", "sexy", "sex", "pornography", "porns", "nude", "nudes", "porn", "xxx",, "bevakoof", "bevda", "bevdey", "bevkoof", "bewakoof", "bewday", 
     "bewkoof", "bewkuf", "bhadua", "bhaduaa", "bhadva", "bhadvaa", "bhadwa", 
     "bhadwaa", "bhadwe", "bhench0d", "bhenchod", "bhenchodd", "bhosada", "bhosda", 
     "bhosdaa", "bhosadchod", "bhosadchodal", "bhosdike", "bhosdiki", "bhosdiwala", 
@@ -19,9 +19,9 @@ ABUSIVE_WORDS = [
     "burr", "buur", "buurr", "ch*tiya", "charsi", "chhod", "chod", "chodd", 
     "chooche", "choochi", "choot", "chudne", "chudney", "chudwa", "chudwaa", 
     "chudwaane", "chudwane", "chuchi", "chut", "chutad", "chute", "chuteya", 
-    "chutia", "chutiya", "chutiyapa", "chutiye", "chuttad", "chutya", "dalaal", 
+    "chutia", "chutiyapa", "chutiye", "chuttad", "chutya", "dalaal", 
     "dalal", "dalle", "dalley", "dick", "fattu", "fuck", "g@ndu", "gaand", 
-    "gaandfat", "gaandmar", "gaandmara", "gaandmasti", "gadha", "gadhe", 
+    "gaandfat", "gaandmar", "gaandmara", "gaandmasti", "gadha", "chodai", "choodai", "gadhe", 
     "gadhalund", "gand", "gandfat", "gandfut", "gandiya", "gandiye", "gandu", 
     "goo", "gote", "gotey", "gotte", "gu", "hag", "haggu", "hagne", "hagney", 
     "haraami", "haraamjaada", "haraamjaade", "haraamkhor", "haraamzaade", 
@@ -158,8 +158,9 @@ def register_abuse_handlers(app: Client):
         if not await db.is_abuse_enabled(message.chat.id):
             return
 
-        if await is_admin(message.chat.id, message.from_user.id, app):
-            return
+        # Yahan se maine "is_admin" wala check hata diya hai.
+        # Ab ye sabke messages check karega, chahe wo admin ho ya owner.
+
         if await db.is_user_whitelisted(message.chat.id, message.from_user.id):
             return
 
@@ -205,5 +206,6 @@ def register_abuse_handlers(app: Client):
                 await asyncio.sleep(60)
                 await sent.delete()
             except Exception as e:
+                # Agar bot admin nahi hai ya uske paas admin ko delete karne ki power nahi hai,
+                # to yahan error aayega (jo print ho jayega).
                 print(f"Error deleting abuse: {e}")
-    
