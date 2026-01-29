@@ -1,20 +1,21 @@
 # ============================================================
-#Group Manager Bot
-# Author: LearningBotsOfficial (https://github.com/LearningBotsOfficial) 
-# Support: https://t.me/LearningBotsCommunity
-# Channel: https://t.me/learning_bots
-# YouTube: https://youtube.com/@learning_bots
-# License: Open-source (keep credits, no resale)
+# Group Manager Bot
 # ============================================================
 
-from pyrogram import Client
+from pyrogram import Client, idle  # <--- idle ko import karna zaroori hai
 from config import API_ID, API_HASH, BOT_TOKEN
 import logging
 from handlers import register_all_handlers
-from db import db
+import asyncio
 
-logging.basicConfig(level=logging.INFO)
+# Logging setup (Errors dekhne ke liye)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
+# Client Setup
 app = Client(
     "group_manger_bot",
     api_id=API_ID,
@@ -22,8 +23,29 @@ app = Client(
     bot_token=BOT_TOKEN
 )
 
+# Handlers Register karna
 register_all_handlers(app)
 
-print("Bot is starting... ")
+# --- Nayi Startup Logic (Zyada Stable) ---
+async def main():
+    try:
+        print("Connecting to Telegram...")
+        await app.start()
+        
+        # Bot ki info print karega (Confirm karne ke liye ki login ho gaya)
+        me = await app.get_me()
+        print(f"✅ Bot Started Successfully: @{me.username}")
+        
+        # Ye line bot ko band hone se rokegi jab tak aap stop na karein
+        await idle()
+        
+    except Exception as e:
+        print(f"❌ Error during startup: {e}")
+    finally:
+        # Jab bot band hoga toh ye chalega
+        await app.stop()
+        print("Bot Stopped.")
 
-app.run()
+if __name__ == "__main__":
+    # Event Loop start karna
+    app.run(main())
